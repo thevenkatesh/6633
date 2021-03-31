@@ -69,7 +69,7 @@ COPY uid_entrypoint.sh /usr/local/bin/uid_entrypoint.sh
 # support for mounting configuration from a configmap
 RUN mkdir -p /app/config/ssh && \
     touch /app/config/ssh/ssh_known_hosts && \
-    ln -s /app/config/ssh/ssh_known_hosts /etc/ssh/ssh_known_hosts 
+    ln -s /app/config/ssh/ssh_known_hosts /etc/ssh/ssh_known_hosts
 
 RUN mkdir -p /app/config/tls
 RUN mkdir -p /app/config/gpg/source && \

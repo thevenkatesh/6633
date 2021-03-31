@@ -299,7 +299,6 @@ func (s *Service) GenerateManifest(ctx context.Context, q *apiclient.ManifestReq
 	if result != nil && !ok {
 		return nil, errors.New("unexpected result type")
 	}
-
 	return result, err
 }
 
@@ -314,6 +313,7 @@ func (s *Service) runManifestGen(repoRoot, commitSHA, cacheKey string, ctxSrc op
 	if err == nil {
 		manifestGenResult, err = GenerateManifests(ctx.appPath, repoRoot, commitSHA, q, false)
 	}
+
 	if err != nil {
 
 		// If manifest generation error caching is enabled
@@ -354,9 +354,12 @@ func (s *Service) runManifestGen(repoRoot, commitSHA, cacheKey string, ctxSrc op
 		FirstFailureTimestamp:           0,
 		MostRecentError:                 "",
 	}
+
 	manifestGenResult.Revision = commitSHA
+
 	manifestGenResult.VerifyResult = ctx.verificationResult
 	err = s.cache.SetManifests(cacheKey, q.ApplicationSource, q.Namespace, q.AppLabelKey, q.AppName, &manifestGenCacheEntry)
+
 	if err != nil {
 		log.Warnf("manifest cache set error %s/%s: %v", q.ApplicationSource.String(), cacheKey, err)
 	}
@@ -1184,10 +1187,12 @@ func (s *Service) GetAppDetails(ctx context.Context, q *apiclient.RepoServerAppD
 }
 
 func (s *Service) GetRevisionMetadata(ctx context.Context, q *apiclient.RepoServerRevisionMetadataRequest) (*v1alpha1.RevisionMetadata, error) {
-	if !(git.IsCommitSHA(q.Revision) || git.IsTruncatedCommitSHA(q.Revision)) {
+	commitSHA := parseRevisionSHA(q.Revision)
+
+	if !(git.IsCommitSHA(commitSHA) || git.IsTruncatedCommitSHA(commitSHA)) {
 		return nil, fmt.Errorf("revision %s must be resolved", q.Revision)
 	}
-	metadata, err := s.cache.GetRevisionMetadata(q.Repo.Repo, q.Revision)
+	metadata, err := s.cache.GetRevisionMetadata(q.Repo.Repo, commitSHA)
 	if err == nil {
 		// The logic here is that if a signature check on metadata is requested,
 		// but there is none in the cache, we handle as if we have a cache miss
@@ -1205,13 +1210,13 @@ func (s *Service) GetRevisionMetadata(ctx context.Context, q *apiclient.RepoServ
 		}
 	} else {
 		if err != reposervercache.ErrCacheMiss {
-			log.Warnf("revision metadata cache error %s/%s: %v", q.Repo.Repo, q.Revision, err)
+			log.Warnf("revision metadata cache error %s/%s: %v", q.Repo.Repo, commitSHA, err)
 		} else {
-			log.Infof("revision metadata cache miss: %s/%s", q.Repo.Repo, q.Revision)
+			log.Infof("revision metadata cache miss: %s/%s", q.Repo.Repo, commitSHA)
 		}
 	}
 
-	gitClient, _, err := s.newClientResolveRevision(q.Repo, q.Revision)
+	gitClient, _, err := s.newClientResolveRevision(q.Repo, commitSHA)
 	if err != nil {
 		return nil, err
 	}
@@ -1220,7 +1225,7 @@ func (s *Service) GetRevisionMetadata(ctx context.Context, q *apiclient.RepoServ
 	defer s.metricsServer.DecPendingRepoRequest(q.Repo.Repo)
 
 	closer, err := s.repoLock.Lock(gitClient.Root(), q.Revision, true, func() error {
-		return checkoutRevision(gitClient, q.Revision)
+		return checkoutRevision(gitClient, commitSHA)
 	})
 
 	if err != nil {
@@ -1229,7 +1234,7 @@ func (s *Service) GetRevisionMetadata(ctx context.Context, q *apiclient.RepoServ
 
 	defer io.Close(closer)
 
-	m, err := gitClient.RevisionMetadata(q.Revision)
+	m, err := gitClient.RevisionMetadata(commitSHA)
 	if err != nil {
 		return nil, err
 	}
@@ -1237,7 +1242,7 @@ func (s *Service) GetRevisionMetadata(ctx context.Context, q *apiclient.RepoServ
 	// Run gpg verify-commit on the revision
 	signatureInfo := ""
 	if gpg.IsGPGEnabled() && q.CheckSignature {
-		cs, err := gitClient.VerifyCommitSignature(q.Revision)
+		cs, err := gitClient.VerifyCommitSignature(commitSHA)
 		if err != nil {
 			log.Errorf("error verifying signature of commit '%s' in repo '%s': %v", q.Revision, q.Repo.Repo, err)
 			return nil, err
@@ -1257,6 +1262,7 @@ func (s *Service) GetRevisionMetadata(ctx context.Context, q *apiclient.RepoServ
 
 	metadata = &v1alpha1.RevisionMetadata{Author: m.Author, Date: metav1.Time{Time: m.Date}, Tags: m.Tags, Message: m.Message, SignatureInfo: signatureInfo}
 	_ = s.cache.SetRevisionMetadata(q.Repo.Repo, q.Revision, metadata)
+
 	return metadata, nil
 }
 
@@ -1327,15 +1333,17 @@ func (s *Service) newHelmClientResolveRevision(repo *v1alpha1.Repository, revisi
 // nolint:unparam
 func checkoutRevision(gitClient git.Client, revision string) error {
 	err := gitClient.Init()
+	commitSHA := parseRevisionSHA(revision)
+
 	if err != nil {
 		return status.Errorf(codes.Internal, "Failed to initialize git repo: %v", err)
 	}
 
 	// Some git providers don't support fetching commit sha
-	if revision != "" && !git.IsCommitSHA(revision) && !git.IsTruncatedCommitSHA(revision) {
-		err = gitClient.Fetch(revision)
+	if commitSHA != "" && !git.IsCommitSHA(commitSHA) && !git.IsTruncatedCommitSHA(commitSHA) {
+		err = gitClient.Fetch(commitSHA)
 		if err != nil {
-			return status.Errorf(codes.Internal, "Failed to fetch %s: %v", revision, err)
+			return status.Errorf(codes.Internal, "Failed to fetch %s: %v", commitSHA, err)
 		}
 		err = gitClient.Checkout("FETCH_HEAD")
 		if err != nil {
@@ -1344,11 +1352,11 @@ func checkoutRevision(gitClient git.Client, revision string) error {
 	} else {
 		err = gitClient.Fetch("")
 		if err != nil {
-			return status.Errorf(codes.Internal, "Failed to fetch %s: %v", revision, err)
+			return status.Errorf(codes.Internal, "Failed to fetch %s: %v", commitSHA, err)
 		}
-		err = gitClient.Checkout(revision)
+		err = gitClient.Checkout(commitSHA)
 		if err != nil {
-			return status.Errorf(codes.Internal, "Failed to checkout %s: %v", revision, err)
+			return status.Errorf(codes.Internal, "Failed to checkout %s: %v", commitSHA, err)
 		}
 	}
 
@@ -1371,4 +1379,15 @@ func (s *Service) GetHelmCharts(ctx context.Context, q *apiclient.HelmChartsRequ
 		res.Items = append(res.Items, &chart)
 	}
 	return &res, nil
+}
+
+// If ARGOCD_GIT_MODULES_ENABLED is enabled, the revisionSHA
+// is concatenated with the revisionSHAs of the git submodules.
+// To ensure correct checkout and displaying in ui, we need to extract
+// the SHA of the root repository.
+func parseRevisionSHA(revision string) string {
+	if !strings.Contains(revision, "-") {
+		return revision
+	}
+	return strings.Split(revision, "-")[0]
 }
