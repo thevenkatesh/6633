@@ -70,6 +70,9 @@ var validRBACActions map[string]bool = map[string]bool{
 
 // NewRBACCommand is the command for 'rbac'
 func NewRBACCommand() *cobra.Command {
+	var (
+		clientConfig clientcmd.ClientConfig
+	)
 	var command = &cobra.Command{
 		Use:   "rbac",
 		Short: "Validate and test RBAC configuration",
@@ -77,24 +80,24 @@ func NewRBACCommand() *cobra.Command {
 			c.HelpFunc()(c, args)
 		},
 	}
-	command.AddCommand(NewRBACCanCommand())
-	command.AddCommand(NewRBACValidateCommand())
+	clientConfig = cli.AddKubectlFlagsToCmd(command)
+	command.AddCommand(NewRBACCanCommand(clientConfig))
+	command.AddCommand(NewRBACValidateCommand(clientConfig))
 	return command
 }
 
 // NewRBACCanRoleCommand is the command for 'rbac can-role'
-func NewRBACCanCommand() *cobra.Command {
+func NewRBACCanCommand(clientConfig clientcmd.ClientConfig) *cobra.Command {
 	var (
-		policyFile   string
-		defaultRole  string
-		useBuiltin   bool
-		strict       bool
-		quiet        bool
-		subject      string
-		action       string
-		resource     string
-		subResource  string
-		clientConfig clientcmd.ClientConfig
+		policyFile  string
+		defaultRole string
+		useBuiltin  bool
+		strict      bool
+		quiet       bool
+		subject     string
+		action      string
+		resource    string
+		subResource string
 	)
 	var command = &cobra.Command{
 		Use:   "can ROLE/SUBJECT ACTION RESOURCE [SUB-RESOURCE]",
@@ -186,7 +189,6 @@ argocd admin settings rbac can someuser create application 'default/app' --defau
 		},
 	}
 
-	clientConfig = cli.AddKubectlFlagsToCmd(command)
 	command.Flags().StringVar(&policyFile, "policy-file", "", "path to the policy file to use")
 	command.Flags().StringVar(&defaultRole, "default-role", "", "name of the default role to use")
 	command.Flags().BoolVar(&useBuiltin, "use-builtin-policy", true, "whether to also use builtin-policy")
@@ -196,24 +198,45 @@ argocd admin settings rbac can someuser create application 'default/app' --defau
 }
 
 // NewRBACValidateCommand returns a new rbac validate command
-func NewRBACValidateCommand() *cobra.Command {
+func NewRBACValidateCommand(clientConfig clientcmd.ClientConfig) *cobra.Command {
 	var (
 		policyFile string
 	)
 
 	var command = &cobra.Command{
-		Use:   "validate --policy-file=POLICYFILE",
+		Use:   "validate --policy-file=POLICYFILE [--namespace=NAMESPACE]",
 		Short: "Validate RBAC policy",
 		Long: `
 Validates an RBAC policy for being syntactically correct. The policy must be
 a local file, and in either CSV or K8s ConfigMap format.
 `,
 		Run: func(c *cobra.Command, args []string) {
-			if policyFile == "" {
+			if len(args) > 0 {
 				c.HelpFunc()(c, args)
-				log.Fatalf("Please specify policy to validate using --policy-file")
+				log.Fatalf("too many arguments")
 			}
-			userPolicy, _ := getPolicy(policyFile, nil, "")
+
+			namespace, nsOverride, err := clientConfig.Namespace()
+			if err != nil {
+				log.Fatalf("could not create k8s client: %v", err)
+			}
+
+			// Exactly one of --namespace or --policy-file must be given.
+			if (!nsOverride && policyFile == "") || (nsOverride && policyFile != "") {
+				c.HelpFunc()(c, args)
+				log.Fatalf("please provide exactly one of --policy-file or --namespace")
+			}
+
+			restConfig, err := clientConfig.ClientConfig()
+			if err != nil {
+				log.Fatalf("could not create k8s client: %v", err)
+			}
+			realClientset, err := kubernetes.NewForConfig(restConfig)
+			if err != nil {
+				log.Fatalf("could not create k8s client: %v", err)
+			}
+
+			userPolicy, _ := getPolicy(policyFile, realClientset, namespace)
 			if userPolicy != "" {
 				if err := rbac.ValidatePolicy(userPolicy); err == nil {
 					fmt.Printf("Policy is valid.\n")
