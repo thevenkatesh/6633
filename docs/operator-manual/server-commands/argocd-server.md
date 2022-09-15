@@ -32,6 +32,7 @@ argocd-server [flags]
       --dex-server-strict-tls                         Perform strict validation of TLS certificates when connecting to dex server
       --disable-auth                                  Disable client authentication
       --enable-gzip                                   Enable GZIP compression
+      --exec-timeout duration                         per-command timeout for external commands invoked by the server (such as gpg) (default 1m30s)
       --gloglevel int                                 Set the glog logging level
   -h, --help                                          help for argocd-server
       --insecure                                      Run server without TLS

@@ -629,6 +629,7 @@ spec:
           name: webhook
         - containerPort: 8080
           name: metrics
+      - name: ARGOCD_APPLICATIONSET_CONTROLLER_EXEC_TIMEOUT
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -638,6 +639,11 @@ spec:
           runAsNonRoot: true
           seccompProfile:
             type: RuntimeDefault
+        valueFrom:
+          configMapKeyRef:
+            key: controller.default.cache.expiration
+            name: argocd-cmd-params-cm
+            optional: true
         volumeMounts:
         - mountPath: /app/config/ssh
           name: ssh-known-hosts
@@ -1031,6 +1037,12 @@ spec:
               key: reposerver.streamed.manifest.max.extracted.size
               name: argocd-cmd-params-cm
               optional: true
+        - name: ARGOCD_REPO_SERVER_EXEC_TIMEOUT
+          valueFrom:
+            configMapKeyRef:
+              key: reposerver.cmd.timeout
+              name: argocd-cmd-params-cm
+              optional: true
         - name: HELM_CACHE_HOME
           value: /helm-working-dir
         - name: HELM_CONFIG_HOME
@@ -1355,6 +1367,12 @@ spec:
           valueFrom:
             configMapKeyRef:
               key: application.namespaces
+              name: argocd-cmd-params-cm
+              optional: true
+        - name: ARGOCD_SERVER_EXEC_TIMEOUT
+          valueFrom:
+            configMapKeyRef:
+              key: server.cmd.timeout
               name: argocd-cmd-params-cm
               optional: true
         image: quay.io/argoproj/argocd:latest

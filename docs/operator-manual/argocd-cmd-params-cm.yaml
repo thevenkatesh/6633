@@ -58,6 +58,10 @@ data:
   # Cache expiration default (default 24h0m0s)
   controller.default.cache.expiration: "24h0m0s"
 
+  ## ApplicationSet controller properties
+  # Timeout for external commands invoked by the ApplicationSet controller.
+  applicationset.controller.cmd.timeout: "90s"
+
   ## Server properties
   # Run server without TLS
   server.insecure: "false"
@@ -104,6 +108,8 @@ data:
   server.app.state.cache.expiration: "1h0m0s"
   # Cache expiration default (default 24h0m0s)
   server.default.cache.expiration: "24h0m0s"
+  # Max amount of time any single external binary call (e.g. gpg) may run in the repo-server.
+  server.cmd.timeout: "90s"
 
   ## Repo-server properties
   # Set the logging format. One of: text|json (default "text")
@@ -131,14 +137,16 @@ data:
   reposerver.max.combined.directory.manifests.size: '10M'
   # Paths to be excluded from the tarball streamed to plugins. Separate with ;
   reposerver.plugin.tar.exclusions: ""
-  # Allow repositories to contain symlinks that leave the boundaries of the repository. 
-  # Changing this to "true" will not allow _all_ out-of-bounds symlinks. Those will still be blocked for things like values 
+  # Allow repositories to contain symlinks that leave the boundaries of the repository.
+  # Changing this to "true" will not allow _all_ out-of-bounds symlinks. Those will still be blocked for things like values
   # files in Helm charts. But symlinks which are not explicitly blocked by other checks will be allowed.
   reposerver.allow.oob.symlinks: "false"
   # Maximum size of tarball when streaming manifests to the repo server for generation
   reposerver.streamed.manifest.max.tar.size: "100M"
   # Maximum size of extracted manifests when streaming manifests to the repo server for generation
   reposerver.streamed.manifest.max.extracted.size: "1G"
-  
+  # Max amount of time any single external binary call (e.g. git) may run in the repo-server.
+  reposerver.cmd.timeout: "90s"
+
   # Disable TLS on the HTTP endpoint
   dexserver.disable.tls: "false"

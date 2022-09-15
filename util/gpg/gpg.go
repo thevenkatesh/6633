@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -218,9 +219,9 @@ func IsGPGEnabled() bool {
 	return true
 }
 
-// InitializePGP will initialize a GnuPG working directory and also create a
+// InitializeGnuPG will initialize a GnuPG working directory and also create a
 // transient private key so that the trust DB will work correctly.
-func InitializeGnuPG() error {
+func InitializeGnuPG(execTimeout time.Duration) error {
 
 	gnuPgHome := common.GetGnuPGHomePath()
 
@@ -283,11 +284,11 @@ func InitializeGnuPG() error {
 	cmd := exec.Command("gpg", "--no-permission-warning", "--logger-fd", "1", "--batch", "--gen-key", f.Name())
 	cmd.Env = getGPGEnviron()
 
-	_, err = executil.Run(cmd)
+	_, err = executil.Run(cmd, execTimeout)
 	return err
 }
 
-func ImportPGPKeysFromString(keyData string) ([]*appsv1.GnuPGPublicKey, error) {
+func ImportPGPKeysFromString(keyData string, execTimeout time.Duration) ([]*appsv1.GnuPGPublicKey, error) {
 	f, err := os.CreateTemp("", "gpg-key-import")
 	if err != nil {
 		return nil, err
@@ -306,18 +307,18 @@ func ImportPGPKeysFromString(keyData string) ([]*appsv1.GnuPGPublicKey, error) {
 			}).Errorf("error closing file %q: %v", f.Name(), err)
 		}
 	}()
-	return ImportPGPKeys(f.Name())
+	return ImportPGPKeys(f.Name(), execTimeout)
 }
 
-// ImportPGPKey imports one or more keys from a file into the local keyring and optionally
+// ImportPGPKeys imports one or more keys from a file into the local keyring and optionally
 // signs them with the transient private key for leveraging the trust DB.
-func ImportPGPKeys(keyFile string) ([]*appsv1.GnuPGPublicKey, error) {
+func ImportPGPKeys(keyFile string, execTimeout time.Duration) ([]*appsv1.GnuPGPublicKey, error) {
 	keys := make([]*appsv1.GnuPGPublicKey, 0)
 
 	cmd := exec.Command("gpg", "--no-permission-warning", "--logger-fd", "1", "--import", keyFile)
 	cmd.Env = getGPGEnviron()
 
-	out, err := executil.Run(cmd)
+	out, err := executil.Run(cmd, execTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -349,20 +350,20 @@ func ImportPGPKeys(keyFile string) ([]*appsv1.GnuPGPublicKey, error) {
 	return keys, nil
 }
 
-func ValidatePGPKeysFromString(keyData string) (map[string]*appsv1.GnuPGPublicKey, error) {
+func ValidatePGPKeysFromString(keyData string, execTimeout time.Duration) (map[string]*appsv1.GnuPGPublicKey, error) {
 	f, err := writeKeyToFile(keyData)
 	if err != nil {
 		return nil, err
 	}
 	defer os.Remove(f)
 
-	return ValidatePGPKeys(f)
+	return ValidatePGPKeys(f, execTimeout)
 }
 
 // ValidatePGPKeys validates whether the keys in keyFile are valid PGP keys and can be imported
 // It does so by importing them into a temporary keyring. The returned keys are complete, that
 // is, they contain all relevant information
-func ValidatePGPKeys(keyFile string) (map[string]*appsv1.GnuPGPublicKey, error) {
+func ValidatePGPKeys(keyFile string, execTimeout time.Duration) (map[string]*appsv1.GnuPGPublicKey, error) {
 	keys := make(map[string]*appsv1.GnuPGPublicKey)
 	tempHome, err := os.MkdirTemp("", "gpg-verify-key")
 	if err != nil {
@@ -376,13 +377,13 @@ func ValidatePGPKeys(keyFile string) (map[string]*appsv1.GnuPGPublicKey, error) 
 	os.Setenv(common.EnvGnuPGHome, tempHome)
 
 	// Import they keys to our temporary keyring...
-	_, err = ImportPGPKeys(keyFile)
+	_, err = ImportPGPKeys(keyFile, execTimeout)
 	if err != nil {
 		return nil, err
 	}
 
 	// ... and export them again, to get key data and fingerprint
-	imported, err := GetInstalledPGPKeys(nil)
+	imported, err := GetInstalledPGPKeys(nil, execTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -394,17 +395,17 @@ func ValidatePGPKeys(keyFile string) (map[string]*appsv1.GnuPGPublicKey, error) 
 	return keys, nil
 }
 
-// SetPGPTrustLevel sets the given trust level on keys with specified key IDs
-func SetPGPTrustLevelById(kids []string, trustLevel string) error {
+// SetPGPTrustLevelById sets the given trust level on keys with specified key IDs
+func SetPGPTrustLevelById(kids []string, trustLevel string, execTimeout time.Duration) error {
 	keys := make([]*appsv1.GnuPGPublicKey, 0)
 	for _, kid := range kids {
 		keys = append(keys, &appsv1.GnuPGPublicKey{KeyID: kid})
 	}
-	return SetPGPTrustLevel(keys, trustLevel)
+	return SetPGPTrustLevel(keys, trustLevel, execTimeout)
 }
 
 // SetPGPTrustLevel sets the given trust level on specified keys
-func SetPGPTrustLevel(pgpKeys []*appsv1.GnuPGPublicKey, trustLevel string) error {
+func SetPGPTrustLevel(pgpKeys []*appsv1.GnuPGPublicKey, trustLevel string, execTimeout time.Duration) error {
 	trust, ok := pgpTrustLevels[trustLevel]
 	if !ok {
 		return fmt.Errorf("Unknown trust level: %s", trustLevel)
@@ -439,7 +440,7 @@ func SetPGPTrustLevel(pgpKeys []*appsv1.GnuPGPublicKey, trustLevel string) error
 	cmd := exec.Command("gpg", "--no-permission-warning", "--import-ownertrust", f.Name())
 	cmd.Env = getGPGEnviron()
 
-	_, err = executil.Run(cmd)
+	_, err = executil.Run(cmd, execTimeout)
 	if err != nil {
 		return err
 	}
@@ -447,7 +448,7 @@ func SetPGPTrustLevel(pgpKeys []*appsv1.GnuPGPublicKey, trustLevel string) error
 	// Update the trustdb once we updated the ownertrust, to prevent gpg to do it once we validate a signature
 	cmd = exec.Command("gpg", "--no-permission-warning", "--update-trustdb")
 	cmd.Env = getGPGEnviron()
-	_, err = executil.Run(cmd)
+	_, err = executil.Run(cmd, execTimeout)
 	if err != nil {
 		return err
 	}
@@ -456,12 +457,12 @@ func SetPGPTrustLevel(pgpKeys []*appsv1.GnuPGPublicKey, trustLevel string) error
 }
 
 // DeletePGPKey deletes a key from our GnuPG key ring
-func DeletePGPKey(keyID string) error {
+func DeletePGPKey(keyID string, execTimeout time.Duration) error {
 	args := append([]string{}, "--no-permission-warning", "--yes", "--batch", "--delete-keys", keyID)
 	cmd := exec.Command("gpg", args...)
 	cmd.Env = getGPGEnviron()
 
-	_, err := executil.Run(cmd)
+	_, err := executil.Run(cmd, execTimeout)
 	if err != nil {
 		return err
 	}
@@ -470,11 +471,11 @@ func DeletePGPKey(keyID string) error {
 }
 
 // IsSecretKey returns true if the keyID also has a private key in the keyring
-func IsSecretKey(keyID string) (bool, error) {
+func IsSecretKey(keyID string, execTimeout time.Duration) (bool, error) {
 	args := append([]string{}, "--no-permission-warning", "--list-secret-keys", keyID)
 	cmd := exec.Command("gpg-wrapper.sh", args...)
 	cmd.Env = getGPGEnviron()
-	out, err := executil.Run(cmd)
+	out, err := executil.Run(cmd, execTimeout)
 	if err != nil {
 		return false, err
 	}
@@ -484,8 +485,8 @@ func IsSecretKey(keyID string) (bool, error) {
 	return true, nil
 }
 
-// GetInstalledPGPKeys() runs gpg to retrieve public keys from our keyring. If kids is non-empty, limit result to those key IDs
-func GetInstalledPGPKeys(kids []string) ([]*appsv1.GnuPGPublicKey, error) {
+// GetInstalledPGPKeys runs gpg to retrieve public keys from our keyring. If kids is non-empty, limit result to those key IDs
+func GetInstalledPGPKeys(kids []string, execTimeout time.Duration) ([]*appsv1.GnuPGPublicKey, error) {
 	keys := make([]*appsv1.GnuPGPublicKey, 0)
 
 	args := append([]string{}, "--no-permission-warning", "--list-public-keys")
@@ -496,7 +497,7 @@ func GetInstalledPGPKeys(kids []string) ([]*appsv1.GnuPGPublicKey, error) {
 	cmd := exec.Command("gpg", args...)
 	cmd.Env = getGPGEnviron()
 
-	out, err := executil.Run(cmd)
+	out, err := executil.Run(cmd, execTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -571,7 +572,7 @@ func GetInstalledPGPKeys(kids []string) ([]*appsv1.GnuPGPublicKey, error) {
 		cmd := exec.Command("gpg", "--no-permission-warning", "-a", "--export", key.KeyID)
 		cmd.Env = getGPGEnviron()
 
-		out, err := executil.Run(cmd)
+		out, err := executil.Run(cmd, execTimeout)
 		if err != nil {
 			return nil, err
 		}
@@ -690,7 +691,7 @@ func ParseGitCommitVerification(signature string) PGPVerifyResult {
 // Files must have a file name matching their Key ID. Keys that are found in the directory but are not
 // in the keyring will be installed to the keyring, files that exist in the keyring but do not exist in
 // the directory will be deleted.
-func SyncKeyRingFromDirectory(basePath string) ([]string, []string, error) {
+func SyncKeyRingFromDirectory(basePath string, execTimeout time.Duration) ([]string, []string, error) {
 	configured := make(map[string]interface{})
 	newKeys := make([]string, 0)
 	fingerprints := make([]string, 0)
@@ -723,7 +724,7 @@ func SyncKeyRingFromDirectory(basePath string) ([]string, []string, error) {
 
 	// Collect GPG keys installed in the key ring
 	installed := make(map[string]*appsv1.GnuPGPublicKey)
-	keys, err := GetInstalledPGPKeys(nil)
+	keys, err := GetInstalledPGPKeys(nil, execTimeout)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -734,14 +735,14 @@ func SyncKeyRingFromDirectory(basePath string) ([]string, []string, error) {
 	// First, add all keys that are found in the configuration but are not yet in the keyring
 	for key := range configured {
 		if _, ok := installed[key]; !ok {
-			addedKey, err := ImportPGPKeys(path.Join(basePath, key))
+			addedKey, err := ImportPGPKeys(path.Join(basePath, key), execTimeout)
 			if err != nil {
 				return nil, nil, err
 			}
 			if len(addedKey) != 1 {
 				return nil, nil, fmt.Errorf("Invalid key found in %s", path.Join(basePath, key))
 			}
-			importedKey, err := GetInstalledPGPKeys([]string{addedKey[0].KeyID})
+			importedKey, err := GetInstalledPGPKeys([]string{addedKey[0].KeyID}, execTimeout)
 			if err != nil {
 				return nil, nil, err
 			} else if len(importedKey) != 1 {
@@ -754,12 +755,12 @@ func SyncKeyRingFromDirectory(basePath string) ([]string, []string, error) {
 
 	// Delete all keys from the keyring that are not found in the configuration anymore.
 	for key := range installed {
-		secret, err := IsSecretKey(key)
+		secret, err := IsSecretKey(key, execTimeout)
 		if err != nil {
 			return nil, nil, err
 		}
 		if _, ok := configured[key]; !ok && !secret {
-			err := DeletePGPKey(key)
+			err := DeletePGPKey(key, execTimeout)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -769,7 +770,7 @@ func SyncKeyRingFromDirectory(basePath string) ([]string, []string, error) {
 
 	// Update owner trust for new keys
 	if len(fingerprints) > 0 {
-		_ = SetPGPTrustLevelById(fingerprints, TrustUltimate)
+		_ = SetPGPTrustLevelById(fingerprints, TrustUltimate, execTimeout)
 	}
 
 	return newKeys, removedKeys, err

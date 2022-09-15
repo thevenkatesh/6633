@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/ghodss/yaml"
 	log "github.com/sirupsen/logrus"
@@ -38,8 +39,8 @@ type Helm interface {
 }
 
 // NewHelmApp create a new wrapper to run commands on the `helm` command-line tool.
-func NewHelmApp(workDir string, repos []HelmRepository, isLocal bool, version string, proxy string, passCredentials bool) (Helm, error) {
-	cmd, err := NewCmd(workDir, version, proxy)
+func NewHelmApp(workDir string, repos []HelmRepository, isLocal bool, version string, proxy string, passCredentials bool, execTimeout time.Duration) (Helm, error) {
+	cmd, err := NewCmd(workDir, version, proxy, execTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +114,7 @@ func (h *helm) Dispose() {
 	h.cmd.Close()
 }
 
-func Version(shortForm bool) (string, error) {
+func Version(shortForm bool, execTimeout time.Duration) (string, error) {
 	executable := "helm"
 	cmdArgs := []string{"version", "--client"}
 	if shortForm {
@@ -123,7 +124,7 @@ func Version(shortForm bool) (string, error) {
 	// example version output:
 	// long: "version.BuildInfo{Version:\"v3.3.1\", GitCommit:\"249e5215cde0c3fa72e27eb7a30e8d55c9696144\", GitTreeState:\"clean\", GoVersion:\"go1.14.7\"}"
 	// short: "v3.3.1+g249e521"
-	version, err := executil.RunWithRedactor(cmd, redactor)
+	version, err := executil.RunWithRedactor(cmd, redactor, execTimeout)
 	if err != nil {
 		return "", fmt.Errorf("could not get helm version: %s", err)
 	}

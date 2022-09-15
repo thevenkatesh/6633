@@ -68,11 +68,11 @@ func WithChartPaths(chartPaths *argoio.TempPaths) ClientOpts {
 	}
 }
 
-func NewClient(repoURL string, creds Creds, enableOci bool, proxy string, opts ...ClientOpts) Client {
-	return NewClientWithLock(repoURL, creds, globalLock, enableOci, proxy, opts...)
+func NewClient(repoURL string, creds Creds, enableOci bool, proxy string, execTimeout time.Duration, opts ...ClientOpts) Client {
+	return NewClientWithLock(repoURL, creds, globalLock, enableOci, proxy, execTimeout, opts...)
 }
 
-func NewClientWithLock(repoURL string, creds Creds, repoLock sync.KeyLock, enableOci bool, proxy string, opts ...ClientOpts) Client {
+func NewClientWithLock(repoURL string, creds Creds, repoLock sync.KeyLock, enableOci bool, proxy string, execTimeout time.Duration, opts ...ClientOpts) Client {
 	c := &nativeHelmChart{
 		repoURL:         repoURL,
 		creds:           creds,
@@ -80,6 +80,7 @@ func NewClientWithLock(repoURL string, creds Creds, repoLock sync.KeyLock, enabl
 		enableOci:       enableOci,
 		proxy:           proxy,
 		chartCachePaths: argoio.NewTempPaths(os.TempDir()),
+		execTimeout:      execTimeout,
 	}
 	for i := range opts {
 		opts[i](c)
@@ -97,6 +98,7 @@ type nativeHelmChart struct {
 	enableOci       bool
 	indexCache      indexCache
 	proxy           string
+	execTimeout      time.Duration
 }
 
 func fileExist(filePath string) (bool, error) {
@@ -120,7 +122,7 @@ func (c *nativeHelmChart) CleanChartCache(chart string, version string) error {
 
 func (c *nativeHelmChart) ExtractChart(chart string, version string, passCredentials bool) (string, argoio.Closer, error) {
 	// always use Helm V3 since we don't have chart content to determine correct Helm version
-	helmCmd, err := NewCmdWithVersion("", HelmV3, c.enableOci, c.proxy)
+	helmCmd, err := NewCmdWithVersion("", HelmV3, c.enableOci, c.proxy, c.execTimeout)
 
 	if err != nil {
 		return "", nil, err
@@ -200,7 +202,7 @@ func (c *nativeHelmChart) ExtractChart(chart string, version string, passCredent
 
 	cmd := exec.Command("tar", "-zxvf", cachedChartPath)
 	cmd.Dir = tempDir
-	_, err = executil.Run(cmd)
+	_, err = executil.Run(cmd, c.execTimeout)
 	if err != nil {
 		_ = os.RemoveAll(tempDir)
 		return "", nil, err
@@ -255,7 +257,7 @@ func (c *nativeHelmChart) TestHelmOCI() (bool, error) {
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	helmCmd, err := NewCmdWithVersion(tmpDir, HelmV3, c.enableOci, c.proxy)
+	helmCmd, err := NewCmdWithVersion(tmpDir, HelmV3, c.enableOci, c.proxy, c.execTimeout)
 	if err != nil {
 		return false, err
 	}

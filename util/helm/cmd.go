@@ -7,6 +7,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -25,24 +26,24 @@ type Cmd struct {
 	IsLocal   bool
 	IsHelmOci bool
 	proxy     string
+	timeout   time.Duration
 }
 
-func NewCmd(workDir string, version string, proxy string) (*Cmd, error) {
-
+func NewCmd(workDir string, version string, proxy string, timeout time.Duration) (*Cmd, error) {
 	switch version {
 	// If v3 is specified (or by default, if no value is specified) then use v3
 	case "", "v3":
-		return NewCmdWithVersion(workDir, HelmV3, false, proxy)
+		return NewCmdWithVersion(workDir, HelmV3, false, proxy, timeout)
 	}
 	return nil, fmt.Errorf("helm chart version '%s' is not supported", version)
 }
 
-func NewCmdWithVersion(workDir string, version HelmVer, isHelmOci bool, proxy string) (*Cmd, error) {
+func NewCmdWithVersion(workDir string, version HelmVer, isHelmOci bool, proxy string, timeout time.Duration) (*Cmd, error) {
 	tmpDir, err := os.MkdirTemp("", "helm")
 	if err != nil {
 		return nil, err
 	}
-	return &Cmd{WorkDir: workDir, helmHome: tmpDir, HelmVer: version, IsHelmOci: isHelmOci, proxy: proxy}, err
+	return &Cmd{WorkDir: workDir, helmHome: tmpDir, HelmVer: version, IsHelmOci: isHelmOci, proxy: proxy, timeout: timeout}, err
 }
 
 var redactor = func(text string) string {
@@ -67,7 +68,7 @@ func (c Cmd) run(args ...string) (string, error) {
 
 	cmd.Env = proxy.UpsertEnv(cmd, c.proxy)
 
-	return executil.RunWithRedactor(cmd, redactor)
+	return executil.RunWithRedactor(cmd, redactor, c.timeout)
 }
 
 func (c *Cmd) Init() (string, error) {

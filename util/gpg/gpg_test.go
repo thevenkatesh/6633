@@ -61,11 +61,11 @@ func Test_GPG_InitializeGnuPG(t *testing.T) {
 	p := initTempDir(t)
 
 	// First run should initialize fine
-	err := InitializeGnuPG()
+	err := InitializeGnuPG(common.DefaultExecTimeout)
 	assert.NoError(t, err)
 
 	// We should have exactly one public key with ultimate trust (our own) in the keyring
-	keys, err := GetInstalledPGPKeys(nil)
+	keys, err := GetInstalledPGPKeys(nil, common.DefaultExecTimeout)
 	assert.NoError(t, err)
 	assert.Len(t, keys, 1)
 	assert.Equal(t, keys[0].Trust, "ultimate")
@@ -78,9 +78,9 @@ func Test_GPG_InitializeGnuPG(t *testing.T) {
 	require.NoError(t, err)
 
 	// Second run should not return error
-	err = InitializeGnuPG()
+	err = InitializeGnuPG(common.DefaultExecTimeout)
 	require.NoError(t, err)
-	keys, err = GetInstalledPGPKeys(nil)
+	keys, err = GetInstalledPGPKeys(nil, common.DefaultExecTimeout)
 	assert.NoError(t, err)
 	assert.Len(t, keys, 1)
 	assert.Equal(t, keys[0].Trust, "ultimate")
@@ -91,7 +91,7 @@ func Test_GPG_InitializeGnuPG(t *testing.T) {
 	defer os.Remove(f.Name())
 
 	os.Setenv(common.EnvGnuPGHome, f.Name())
-	err = InitializeGnuPG()
+	err = InitializeGnuPG(common.DefaultExecTimeout)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "does not point to a directory")
 
@@ -106,7 +106,7 @@ func Test_GPG_InitializeGnuPG(t *testing.T) {
 		panic(err.Error())
 	}
 	os.Setenv(common.EnvGnuPGHome, fp)
-	err = InitializeGnuPG()
+	err = InitializeGnuPG(common.DefaultExecTimeout)
 	assert.Error(t, err)
 	// Restore permissions so path can be deleted
 	err = os.Chmod(fp, 0700)
@@ -123,18 +123,18 @@ func Test_GPG_InitializeGnuPG(t *testing.T) {
 		panic(err.Error())
 	}
 	os.Setenv(common.EnvGnuPGHome, p)
-	err = InitializeGnuPG()
+	err = InitializeGnuPG(common.DefaultExecTimeout)
 	assert.NoError(t, err)
 }
 
 func Test_GPG_KeyManagement(t *testing.T) {
 	initTempDir(t)
 
-	err := InitializeGnuPG()
+	err := InitializeGnuPG(common.DefaultExecTimeout)
 	assert.NoError(t, err)
 
 	// Import a single good key
-	keys, err := ImportPGPKeys("testdata/github.asc")
+	keys, err := ImportPGPKeys("testdata/github.asc", common.DefaultExecTimeout)
 	assert.NoError(t, err)
 	assert.Len(t, keys, 1)
 	assert.Equal(t, "4AEE18F83AFDEB23", keys[0].KeyID)
@@ -147,14 +147,14 @@ func Test_GPG_KeyManagement(t *testing.T) {
 
 	// We should have a total of 2 keys in the keyring now
 	{
-		keys, err := GetInstalledPGPKeys(nil)
+		keys, err := GetInstalledPGPKeys(nil, common.DefaultExecTimeout)
 		assert.NoError(t, err)
 		assert.Len(t, keys, 2)
 	}
 
 	// We should now have that key in our keyring with unknown trust (trustdb not updated)
 	{
-		keys, err := GetInstalledPGPKeys([]string{importedKeyId})
+		keys, err := GetInstalledPGPKeys([]string{importedKeyId}, common.DefaultExecTimeout)
 		assert.NoError(t, err)
 		assert.Len(t, keys, 1)
 		assert.Equal(t, "4AEE18F83AFDEB23", keys[0].KeyID)
@@ -168,9 +168,9 @@ func Test_GPG_KeyManagement(t *testing.T) {
 
 	// Set trust level for our key and check the result
 	{
-		err := SetPGPTrustLevelById(kids, "ultimate")
+		err := SetPGPTrustLevelById(kids, "ultimate", common.DefaultExecTimeout)
 		assert.NoError(t, err)
-		keys, err := GetInstalledPGPKeys(kids)
+		keys, err := GetInstalledPGPKeys(kids, common.DefaultExecTimeout)
 		assert.NoError(t, err)
 		assert.Len(t, keys, 1)
 		assert.Equal(t, kids[0], keys[0].Fingerprint)
@@ -178,35 +178,35 @@ func Test_GPG_KeyManagement(t *testing.T) {
 	}
 
 	// Import garbage - error expected
-	keys, err = ImportPGPKeys("testdata/garbage.asc")
+	keys, err = ImportPGPKeys("testdata/garbage.asc", common.DefaultExecTimeout)
 	assert.Error(t, err)
 	assert.Len(t, keys, 0)
 
 	// We should still have a total of 2 keys in the keyring now
 	{
-		keys, err := GetInstalledPGPKeys(nil)
+		keys, err := GetInstalledPGPKeys(nil, common.DefaultExecTimeout)
 		assert.NoError(t, err)
 		assert.Len(t, keys, 2)
 	}
 
 	// Delete previously imported public key
 	{
-		err := DeletePGPKey(importedKeyId)
+		err := DeletePGPKey(importedKeyId, common.DefaultExecTimeout)
 		assert.NoError(t, err)
-		keys, err := GetInstalledPGPKeys(nil)
+		keys, err := GetInstalledPGPKeys(nil, common.DefaultExecTimeout)
 		assert.NoError(t, err)
 		assert.Len(t, keys, 1)
 	}
 
 	// Delete non-existing key
 	{
-		err := DeletePGPKey(importedKeyId)
+		err := DeletePGPKey(importedKeyId, common.DefaultExecTimeout)
 		assert.Error(t, err)
 	}
 
 	// Import multiple keys
 	{
-		keys, err := ImportPGPKeys("testdata/multi.asc")
+		keys, err := ImportPGPKeys("testdata/multi.asc", common.DefaultExecTimeout)
 		assert.NoError(t, err)
 		assert.Len(t, keys, 2)
 		assert.Contains(t, keys[0].Owner, "john.doe@example.com")
@@ -215,7 +215,7 @@ func Test_GPG_KeyManagement(t *testing.T) {
 
 	// Check if they were really imported
 	{
-		keys, err := GetInstalledPGPKeys(nil)
+		keys, err := GetInstalledPGPKeys(nil, common.DefaultExecTimeout)
 		assert.NoError(t, err)
 		assert.Len(t, keys, 3)
 	}
@@ -225,11 +225,11 @@ func Test_GPG_KeyManagement(t *testing.T) {
 func Test_ImportPGPKeysFromString(t *testing.T) {
 	initTempDir(t)
 
-	err := InitializeGnuPG()
+	err := InitializeGnuPG(common.DefaultExecTimeout)
 	assert.NoError(t, err)
 
 	// Import a single good key
-	keys, err := ImportPGPKeysFromString(test.MustLoadFileToString("testdata/github.asc"))
+	keys, err := ImportPGPKeysFromString(test.MustLoadFileToString("testdata/github.asc"), common.DefaultExecTimeout)
 	assert.NoError(t, err)
 	assert.Len(t, keys, 1)
 	assert.Equal(t, "4AEE18F83AFDEB23", keys[0].KeyID)
@@ -242,19 +242,19 @@ func Test_ImportPGPKeysFromString(t *testing.T) {
 func Test_ValidateGPGKeysFromString(t *testing.T) {
 	initTempDir(t)
 
-	err := InitializeGnuPG()
+	err := InitializeGnuPG(common.DefaultExecTimeout)
 	assert.NoError(t, err)
 
 	{
 		keyData := test.MustLoadFileToString("testdata/github.asc")
-		keys, err := ValidatePGPKeysFromString(keyData)
+		keys, err := ValidatePGPKeysFromString(keyData, common.DefaultExecTimeout)
 		assert.NoError(t, err)
 		assert.Len(t, keys, 1)
 	}
 
 	{
 		keyData := test.MustLoadFileToString("testdata/multi.asc")
-		keys, err := ValidatePGPKeysFromString(keyData)
+		keys, err := ValidatePGPKeysFromString(keyData, common.DefaultExecTimeout)
 		assert.NoError(t, err)
 		assert.Len(t, keys, 2)
 	}
@@ -264,12 +264,12 @@ func Test_ValidateGPGKeysFromString(t *testing.T) {
 func Test_ValidateGPGKeys(t *testing.T) {
 	initTempDir(t)
 
-	err := InitializeGnuPG()
+	err := InitializeGnuPG(common.DefaultExecTimeout)
 	assert.NoError(t, err)
 
 	// Validation good case - 1 key
 	{
-		keys, err := ValidatePGPKeys("testdata/github.asc")
+		keys, err := ValidatePGPKeys("testdata/github.asc", common.DefaultExecTimeout)
 		assert.NoError(t, err)
 		assert.Len(t, keys, 1)
 		assert.Contains(t, keys, "4AEE18F83AFDEB23")
@@ -277,14 +277,14 @@ func Test_ValidateGPGKeys(t *testing.T) {
 
 	// Validation bad case
 	{
-		keys, err := ValidatePGPKeys("testdata/garbage.asc")
+		keys, err := ValidatePGPKeys("testdata/garbage.asc", common.DefaultExecTimeout)
 		assert.Error(t, err)
 		assert.Len(t, keys, 0)
 	}
 
 	// We should still have a total of 1 keys in the keyring now
 	{
-		keys, err := GetInstalledPGPKeys(nil)
+		keys, err := GetInstalledPGPKeys(nil, common.DefaultExecTimeout)
 		assert.NoError(t, err)
 		assert.Len(t, keys, 1)
 	}
@@ -293,10 +293,10 @@ func Test_ValidateGPGKeys(t *testing.T) {
 func Test_GPG_ParseGitCommitVerification(t *testing.T) {
 	initTempDir(t)
 
-	err := InitializeGnuPG()
+	err := InitializeGnuPG(common.DefaultExecTimeout)
 	assert.NoError(t, err)
 
-	keys, err := ImportPGPKeys("testdata/github.asc")
+	keys, err := ImportPGPKeys("testdata/github.asc", common.DefaultExecTimeout)
 	assert.NoError(t, err)
 	assert.Len(t, keys, 1)
 
@@ -510,23 +510,23 @@ func Test_IsSecretKey(t *testing.T) {
 	initTempDir(t)
 
 	// First run should initialize fine
-	err := InitializeGnuPG()
+	err := InitializeGnuPG(common.DefaultExecTimeout)
 	assert.NoError(t, err)
 
 	// We should have exactly one public key with ultimate trust (our own) in the keyring
-	keys, err := GetInstalledPGPKeys(nil)
+	keys, err := GetInstalledPGPKeys(nil, common.DefaultExecTimeout)
 	assert.NoError(t, err)
 	assert.Len(t, keys, 1)
 	assert.Equal(t, keys[0].Trust, "ultimate")
 
 	{
-		secret, err := IsSecretKey(keys[0].KeyID)
+		secret, err := IsSecretKey(keys[0].KeyID, common.DefaultExecTimeout)
 		assert.NoError(t, err)
 		assert.True(t, secret)
 	}
 
 	{
-		secret, err := IsSecretKey("invalid")
+		secret, err := IsSecretKey("invalid", common.DefaultExecTimeout)
 		assert.NoError(t, err)
 		assert.False(t, secret)
 	}
@@ -537,13 +537,13 @@ func Test_SyncKeyRingFromDirectory(t *testing.T) {
 	initTempDir(t)
 
 	// First run should initialize fine
-	err := InitializeGnuPG()
+	err := InitializeGnuPG(common.DefaultExecTimeout)
 	assert.NoError(t, err)
 
 	tempDir := t.TempDir()
 
 	{
-		new, removed, err := SyncKeyRingFromDirectory(tempDir)
+		new, removed, err := SyncKeyRingFromDirectory(tempDir, common.DefaultExecTimeout)
 		assert.NoError(t, err)
 		assert.Len(t, new, 0)
 		assert.Len(t, removed, 0)
@@ -568,12 +568,12 @@ func Test_SyncKeyRingFromDirectory(t *testing.T) {
 			dst.Close()
 		}
 
-		new, removed, err := SyncKeyRingFromDirectory(tempDir)
+		new, removed, err := SyncKeyRingFromDirectory(tempDir, common.DefaultExecTimeout)
 		assert.NoError(t, err)
 		assert.Len(t, new, 3)
 		assert.Len(t, removed, 0)
 
-		installed, err := GetInstalledPGPKeys(new)
+		installed, err := GetInstalledPGPKeys(new, common.DefaultExecTimeout)
 		assert.NoError(t, err)
 		for _, k := range installed {
 			assert.Contains(t, new, k.KeyID)
@@ -585,12 +585,12 @@ func Test_SyncKeyRingFromDirectory(t *testing.T) {
 		if err != nil {
 			panic(err.Error())
 		}
-		new, removed, err := SyncKeyRingFromDirectory(tempDir)
+		new, removed, err := SyncKeyRingFromDirectory(tempDir, common.DefaultExecTimeout)
 		assert.NoError(t, err)
 		assert.Len(t, new, 0)
 		assert.Len(t, removed, 1)
 
-		installed, err := GetInstalledPGPKeys(new)
+		installed, err := GetInstalledPGPKeys(new, common.DefaultExecTimeout)
 		assert.NoError(t, err)
 		for _, k := range installed {
 			assert.NotEqual(t, k.KeyID, removed[0])

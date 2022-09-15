@@ -84,6 +84,7 @@ func NewCommand() *cobra.Command {
 		allowOutOfBoundsSymlinks          bool
 		streamedManifestMaxTarSize        string
 		streamedManifestMaxExtractedSize  string
+		execTimeout                       time.Duration
 	)
 	var command = cobra.Command{
 		Use:               cliName,
@@ -136,6 +137,7 @@ func NewCommand() *cobra.Command {
 				AllowOutOfBoundsSymlinks:                     allowOutOfBoundsSymlinks,
 				StreamedManifestMaxExtractedSize:             streamedManifestMaxExtractedSizeQuantity.ToDec().Value(),
 				StreamedManifestMaxTarSize:                   streamedManifestMaxTarSizeQuantity.ToDec().Value(),
+				ExecTimeout:                                  execTimeout,
 			}, askPassServer)
 			errors.CheckError(err)
 
@@ -181,15 +183,15 @@ func NewCommand() *cobra.Command {
 
 			if gpg.IsGPGEnabled() {
 				log.Infof("Initializing GnuPG keyring at %s", common.GetGnuPGHomePath())
-				err = gpg.InitializeGnuPG()
+				err = gpg.InitializeGnuPG(execTimeout)
 				errors.CheckError(err)
 
 				log.Infof("Populating GnuPG keyring with keys from %s", getGnuPGSourcePath())
-				added, removed, err := gpg.SyncKeyRingFromDirectory(getGnuPGSourcePath())
+				added, removed, err := gpg.SyncKeyRingFromDirectory(getGnuPGSourcePath(), execTimeout)
 				errors.CheckError(err)
 				log.Infof("Loaded %d (and removed %d) keys from keyring", len(added), len(removed))
 
-				go func() { errors.CheckError(reposerver.StartGPGWatcher(getGnuPGSourcePath())) }()
+				go func() { errors.CheckError(reposerver.StartGPGWatcher(getGnuPGSourcePath(), execTimeout)) }()
 			}
 
 			log.Infof("argocd-repo-server is listening on %s", listener.Addr())
@@ -216,6 +218,8 @@ func NewCommand() *cobra.Command {
 	command.Flags().BoolVar(&allowOutOfBoundsSymlinks, "allow-oob-symlinks", env.ParseBoolFromEnv("ARGOCD_REPO_SERVER_ALLOW_OUT_OF_BOUNDS_SYMLINKS", false), "Allow out-of-bounds symlinks in repositories (not recommended)")
 	command.Flags().StringVar(&streamedManifestMaxTarSize, "streamed-manifest-max-tar-size", env.StringFromEnv("ARGOCD_REPO_SERVER_STREAMED_MANIFEST_MAX_TAR_SIZE", "100M"), "Maximum size of streamed manifest archives")
 	command.Flags().StringVar(&streamedManifestMaxExtractedSize, "streamed-manifest-max-extracted-size", env.StringFromEnv("ARGOCD_REPO_SERVER_STREAMED_MANIFEST_MAX_EXTRACTED_SIZE", "1G"), "Maximum size of streamed manifest archives when extracted")
+	durationFromEnv := cli.GetExecTimeoutEnvVarValue("ARGOCD_REPO_SERVER_EXEC_TIMEOUT")
+	command.Flags().DurationVar(&execTimeout, "exec-timeout", durationFromEnv, "per-command timeout for external commands invoked by the repo server (such as git)")
 	tlsConfigCustomizerSrc = tls.AddTLSFlagsToCmd(&command)
 	cacheSrc = reposervercache.AddCacheFlagsToCmd(&command, func(client *redis.Client) {
 		redisClient = client

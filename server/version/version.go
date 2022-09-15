@@ -2,6 +2,8 @@ package version
 
 import (
 	"context"
+	"time"
+
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/google/go-jsonnet"
 
@@ -18,11 +20,12 @@ type server struct {
 	helmVersion      string
 	jsonnetVersion   string
 	authenticator    settings.Authenticator
-	disableAuth      func() (bool, error)
+	disableAuth func() (bool, error)
+	execTimeout time.Duration
 }
 
-func NewServer(authenticator settings.Authenticator, disableAuth func() (bool, error)) *server {
-	return &server{authenticator: authenticator, disableAuth: disableAuth}
+func NewServer(authenticator settings.Authenticator, disableAuth func() (bool, error), execTimeout time.Duration) *server {
+	return &server{authenticator: authenticator, disableAuth: disableAuth, execTimeout: execTimeout}
 }
 
 // Version returns the version of the API server
@@ -38,7 +41,7 @@ func (s *server) Version(ctx context.Context, _ *empty.Empty) (*version.VersionM
 	}
 
 	if s.kustomizeVersion == "" {
-		kustomizeVersion, err := kustomize.Version(true)
+		kustomizeVersion, err := kustomize.Version(true, s.execTimeout)
 		if err == nil {
 			s.kustomizeVersion = kustomizeVersion
 		} else {
@@ -46,7 +49,7 @@ func (s *server) Version(ctx context.Context, _ *empty.Empty) (*version.VersionM
 		}
 	}
 	if s.helmVersion == "" {
-		helmVersion, err := helm.Version(true)
+		helmVersion, err := helm.Version(true, s.execTimeout)
 		if err == nil {
 			s.helmVersion = helmVersion
 		} else {
