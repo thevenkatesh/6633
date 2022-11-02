@@ -4558,6 +4558,8 @@ spec:
                                     properties:
                                       api:
                                         type: string
+                                      group:
+                                        type: string
                                       labels:
                                         items:
                                           type: string
@@ -4576,8 +4578,6 @@ spec:
                                         - key
                                         - secretName
                                         type: object
-                                    required:
-                                    - project
                                     type: object
                                   requeueAfterSeconds:
                                     format: int64
@@ -6788,6 +6788,8 @@ spec:
                                     properties:
                                       api:
                                         type: string
+                                      group:
+                                        type: string
                                       labels:
                                         items:
                                           type: string
@@ -6806,8 +6808,6 @@ spec:
                                         - key
                                         - secretName
                                         type: object
-                                    required:
-                                    - project
                                     type: object
                                   requeueAfterSeconds:
                                     format: int64
@@ -7883,6 +7883,8 @@ spec:
                           properties:
                             api:
                               type: string
+                            group:
+                              type: string
                             labels:
                               items:
                                 type: string
@@ -7901,8 +7903,6 @@ spec:
                               - key
                               - secretName
                               type: object
-                          required:
-                          - project
                           type: object
                         requeueAfterSeconds:
                           format: int64

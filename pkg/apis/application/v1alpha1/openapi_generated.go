@@ -3915,8 +3915,7 @@ func schema_pkg_apis_application_v1alpha1_PullRequestGeneratorGitLab(ref common.
 				Properties: map[string]spec.Schema{
 					"project": {
 						SchemaProps: spec.SchemaProps{
-							Description: "GitLab project to scan. Required.",
-							Default:     "",
+							Description: "GitLab project to scan. Either project or group required.",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -3956,8 +3955,14 @@ func schema_pkg_apis_application_v1alpha1_PullRequestGeneratorGitLab(ref common.
 							Format:      "",
 						},
 					},
+					"group": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Gitlab group to scan. Either project or group required.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
-				Required: []string{"project"},
 			},
 		},
 		Dependencies: []string{

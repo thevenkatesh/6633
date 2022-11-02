@@ -22,6 +22,17 @@ func writeMRListResponse(t *testing.T, w io.Writer) {
 	}
 }
 
+func writeProjectResponse(t *testing.T, w io.Writer) {
+	f, err := os.Open("fixtures/gitlab_project_response.json")
+	if err != nil {
+		t.Fatalf("error opening fixture file: %v", err)
+	}
+
+	if _, err = io.Copy(w, f); err != nil {
+		t.Fatalf("error writing response: %v", err)
+	}
+}
+
 func TestGitLabServiceCustomBaseURL(t *testing.T) {
 	mux := http.NewServeMux()
 	server := httptest.NewServer(mux)
@@ -34,7 +45,13 @@ func TestGitLabServiceCustomBaseURL(t *testing.T) {
 		writeMRListResponse(t, w)
 	})
 
-	svc, err := NewGitLabService(context.Background(), "", server.URL, "278964", nil, "")
+	projectPath := "/api/v4/projects/278964"
+	mux.HandleFunc(projectPath, func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, projectPath, r.URL.RequestURI())
+		writeProjectResponse(t, w)
+	})
+
+	svc, err := NewGitLabService(context.Background(), "", server.URL, "278964", nil, "", "")
 	assert.NoError(t, err)
 
 	_, err = svc.List(context.Background())
@@ -53,7 +70,13 @@ func TestGitLabServiceToken(t *testing.T) {
 		writeMRListResponse(t, w)
 	})
 
-	svc, err := NewGitLabService(context.Background(), "token-123", server.URL, "278964", nil, "")
+	projectPath := "/api/v4/projects/278964"
+	mux.HandleFunc(projectPath, func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, projectPath, r.URL.RequestURI())
+		writeProjectResponse(t, w)
+	})
+
+	svc, err := NewGitLabService(context.Background(), "token-123", server.URL, "278964", nil, "", "")
 	assert.NoError(t, err)
 
 	_, err = svc.List(context.Background())
@@ -72,7 +95,13 @@ func TestList(t *testing.T) {
 		writeMRListResponse(t, w)
 	})
 
-	svc, err := NewGitLabService(context.Background(), "", server.URL, "278964", []string{}, "")
+	projectPath := "/api/v4/projects/278964"
+	mux.HandleFunc(projectPath, func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, projectPath, r.URL.RequestURI())
+		writeProjectResponse(t, w)
+	})
+
+	svc, err := NewGitLabService(context.Background(), "", server.URL, "278964", []string{}, "", "")
 	assert.NoError(t, err)
 
 	prs, err := svc.List(context.Background())
@@ -81,6 +110,7 @@ func TestList(t *testing.T) {
 	assert.Equal(t, prs[0].Number, 15442)
 	assert.Equal(t, prs[0].Branch, "use-structured-logging-for-db-load-balancer")
 	assert.Equal(t, prs[0].HeadSHA, "2fc4e8b972ff3208ec63b6143e34ad67ff343ad7")
+	assert.Equal(t, prs[0].Url, "https://gitlab.com/gitlab-org/gitlab-ee.git")
 }
 
 func TestListWithLabels(t *testing.T) {
@@ -95,7 +125,13 @@ func TestListWithLabels(t *testing.T) {
 		writeMRListResponse(t, w)
 	})
 
-	svc, err := NewGitLabService(context.Background(), "", server.URL, "278964", []string{"feature", "ready"}, "")
+	projectPath := "/api/v4/projects/278964"
+	mux.HandleFunc(projectPath, func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, projectPath, r.URL.RequestURI())
+		writeProjectResponse(t, w)
+	})
+
+	svc, err := NewGitLabService(context.Background(), "", server.URL, "278964", []string{"feature", "ready"}, "", "")
 	assert.NoError(t, err)
 
 	_, err = svc.List(context.Background())
@@ -114,7 +150,13 @@ func TestListWithState(t *testing.T) {
 		writeMRListResponse(t, w)
 	})
 
-	svc, err := NewGitLabService(context.Background(), "", server.URL, "278964", []string{}, "opened")
+	projectPath := "/api/v4/projects/278964"
+	mux.HandleFunc(projectPath, func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, projectPath, r.URL.RequestURI())
+		writeProjectResponse(t, w)
+	})
+
+	svc, err := NewGitLabService(context.Background(), "", server.URL, "278964", []string{}, "opened", "")
 	assert.NoError(t, err)
 
 	_, err = svc.List(context.Background())
