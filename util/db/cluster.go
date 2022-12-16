@@ -26,9 +26,11 @@ import (
 
 var (
 	localCluster = appv1.Cluster{
-		Name:            "in-cluster",
-		Server:          appv1.KubernetesInternalAPIServerAddr,
-		ConnectionState: appv1.ConnectionState{Status: appv1.ConnectionStatusSuccessful},
+		Name:   "in-cluster",
+		Server: appv1.KubernetesInternalAPIServerAddr,
+		Info: appv1.ClusterInfo{
+			ConnectionState: appv1.ConnectionState{Status: appv1.ConnectionStatusSuccessful},
+		},
 	}
 	initLocalCluster sync.Once
 )
@@ -37,10 +39,10 @@ func (db *db) getLocalCluster() *appv1.Cluster {
 	initLocalCluster.Do(func() {
 		info, err := db.kubeclientset.Discovery().ServerVersion()
 		if err == nil {
-			localCluster.ServerVersion = fmt.Sprintf("%s.%s", info.Major, info.Minor)
-			localCluster.ConnectionState = appv1.ConnectionState{Status: appv1.ConnectionStatusSuccessful}
+			localCluster.Info.ServerVersion = fmt.Sprintf("%s.%s", info.Major, info.Minor)
+			localCluster.Info.ConnectionState = appv1.ConnectionState{Status: appv1.ConnectionStatusSuccessful}
 		} else {
-			localCluster.ConnectionState = appv1.ConnectionState{
+			localCluster.Info.ConnectionState = appv1.ConnectionState{
 				Status:  appv1.ConnectionStatusFailed,
 				Message: err.Error(),
 			}
@@ -48,7 +50,7 @@ func (db *db) getLocalCluster() *appv1.Cluster {
 	})
 	cluster := localCluster.DeepCopy()
 	now := metav1.Now()
-	cluster.ConnectionState.ModifiedAt = &now
+	cluster.Info.ConnectionState.ModifiedAt = &now
 	return cluster
 }
 
@@ -139,7 +141,7 @@ func (db *db) WatchClusters(ctx context.Context,
 	handleAddEvent func(cluster *appv1.Cluster),
 	handleModEvent func(oldCluster *appv1.Cluster, newCluster *appv1.Cluster),
 	handleDeleteEvent func(clusterServer string)) error {
-	localCls, err := db.GetCluster(ctx, appv1.KubernetesInternalAPIServerAddr)
+	localCls, err := db.GetClusterByUrl(ctx, appv1.KubernetesInternalAPIServerAddr)
 	if err != nil {
 		return err
 	}
@@ -209,24 +211,45 @@ func (db *db) getClusterSecret(server string) (*apiv1.Secret, error) {
 	return nil, status.Errorf(codes.NotFound, "cluster %q not found", server)
 }
 
-// GetCluster returns a cluster from a query
-func (db *db) GetCluster(_ context.Context, server string) (*appv1.Cluster, error) {
+// GetClusterByUrl returns a cluster from a query
+func (db *db) GetClusterByUrl(_ context.Context, serverUrl string) (*appv1.Cluster, error) {
 	informer, err := db.settingsMgr.GetSecretsInformer()
 	if err != nil {
 		return nil, err
 	}
-	res, err := informer.GetIndexer().ByIndex(settings.ByClusterURLIndexer, server)
+	res, err := informer.GetIndexer().ByIndex(settings.ByClusterURLIndexer, serverUrl)
 	if err != nil {
 		return nil, err
 	}
 	if len(res) > 0 {
 		return secretToCluster(res[0].(*apiv1.Secret))
 	}
-	if server == appv1.KubernetesInternalAPIServerAddr {
+	if serverUrl == appv1.KubernetesInternalAPIServerAddr {
 		return db.getLocalCluster(), nil
 	}
 
-	return nil, status.Errorf(codes.NotFound, "cluster %q not found", server)
+	return nil, status.Errorf(codes.NotFound, "cluster %q not found", serverUrl)
+}
+
+// GetClusterByName returns a cluster from a query
+func (db *db) GetClusterByName(_ context.Context, serverName string) (*appv1.Cluster, error) {
+	if serverName == "in-cluster" {
+		return db.getLocalCluster(), nil
+	}
+
+	informer, err := db.settingsMgr.GetSecretsInformer()
+	if err != nil {
+		return nil, err
+	}
+	res, err := informer.GetIndexer().ByIndex(settings.ByClusterNameIndexer, serverName)
+	if err != nil {
+		return nil, err
+	}
+	if len(res) > 0 {
+		return secretToCluster(res[0].(*apiv1.Secret))
+	}
+
+	return nil, status.Errorf(codes.NotFound, "cluster with name %q not found", serverName)
 }
 
 // GetProjectClusters return project scoped clusters by given project name
