@@ -154,8 +154,8 @@ spec:
 
 The `generate` command must print a valid YAML stream to stdout. Both `init` and `generate` commands are executed inside the application source directory.
 
-The `discover.fileName` is used as [glob](https://pkg.go.dev/path/filepath#Glob) pattern to determine whether an
-application repository is supported by the plugin or not. 
+The `discover.fileName` is used as [glob](https://pkg.go.dev/path/filepath#Glob) pattern to determine if an
+application repository is supported by the plugin. 
 
 ```yaml
   discover:
@@ -163,8 +163,8 @@ application repository is supported by the plugin or not.
       command: [sh, -c, find . -name env.yaml]
 ```
 
-If `discover.fileName` is not provided, the `discover.find.command` is executed in order to determine whether an
-application repository is supported by the plugin or not. The `find` command should return a non-error exit code
+If `discover.fileName` is not provided, the `discover.find.command` is executed in order to determine if an
+application repository is supported by the plugin. The `find` command should return a non-error exit code
 and produce output to stdout when the application source type is supported.
 
 #### 2. Place the plugin configuration file in the sidecar
@@ -458,7 +458,7 @@ Write rules applicable to your plugin [using the instructions above](#1-write-th
 them to your configuration file.
 
 !!! note
-    After installing your sidecar plugin, you may remove the `name` field from the plugin config in your
+    After installing your sidecar plugin, you should remove the `name` field from the plugin config in your
     Application specs for auto-discovery or update the name to `<metadata.name>-<spec.version>`
     if version was mentioned in the `ConfigManagementPlugin` spec or else just use `<metadata.name>`. For example:
 
