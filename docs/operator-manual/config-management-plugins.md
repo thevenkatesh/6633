@@ -389,7 +389,7 @@ If you are actively developing a sidecar-installed CMP, keep a few things in min
    repo-server Pod so the plugin will pick up the changes. If you are using `:latest`, the Pod will always pull the new
    image. If you're using a different, static tag, set `imagePullPolicy: Always` on the CMP's sidecar container.
 3. CMP errors are cached by the repo-server in Redis. Restarting the repo-server Pod will not clear the cache. Always
-   do a "Hard Refresh" when actively developing a CMP so you have the latest output.
+   do an "Invalidate Cache" (or `argocd app get ... --hard-refresh`) when actively developing a CMP so you have the latest output.
 
 ## Plugin tar stream exclusions
 
