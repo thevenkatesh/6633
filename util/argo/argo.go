@@ -19,6 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	argoappv1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
 	"github.com/argoproj/argo-cd/v2/pkg/client/clientset/versioned/typed/application/v1alpha1"
@@ -968,4 +969,17 @@ func AppInstanceNameFromQualified(name string, defaultNs string) string {
 // identified by projName.
 func ErrProjectNotPermitted(appName, appNamespace, projName string) error {
 	return fmt.Errorf("application '%s' in namespace '%s' is not permitted to use project '%s'", appName, appNamespace, projName)
+}
+
+// TruncateLabelName truncates a label name to a maximum length of characters specified in validation.LabelValueMaxLength
+func TruncateLabelName(name string) string {
+	if len(name) > validation.LabelValueMaxLength {
+		name = name[:validation.LabelValueMaxLength]
+	}
+	return stripTrailingHyphens(name)
+}
+
+// stripTrailingHyphens removes trailing hyphens from a string
+func stripTrailingHyphens(name string) string {
+	return strings.TrimRight(name, "-")
 }
