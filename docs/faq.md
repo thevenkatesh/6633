@@ -225,3 +225,14 @@ resource.customizations.health.bitnami.com_SealedSecret: |
   hs.message = "Controller doesn't report resource status"
   return hs
 ```
+
+## What does `Refresh` do and what is a `Hard Refresh`?
+
+`Refresh` / `Repo Refresh` will check the repository for the current applicable version of the
+application. If that doesn't match the last retrieved version, it will proceed to generate a
+new manifest.
+
+`Hard Refresh` / `Invalidate Cache` will regenerate the application's manifest.
+
+In either case, if the generated manifest differs from the current kubernetes state,
+the changes will be applied.
