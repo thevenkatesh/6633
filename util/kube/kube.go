@@ -6,8 +6,6 @@ import (
 	"github.com/argoproj/gitops-engine/pkg/utils/kube"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-
-	"github.com/argoproj/argo-cd/v2/common"
 )
 
 var resourceNamePattern = regexp.MustCompile("^[a-z0-9]([-a-z0-9]*[a-z0-9])?$")
@@ -17,19 +15,15 @@ func IsValidResourceName(name string) bool {
 	return len(name) < 64 && resourceNamePattern.MatchString(name)
 }
 
-// SetAppInstanceLabel the recommended app.kubernetes.io/instance label against an unstructured object
+// SetAppLabel the recommended app.kubernetes.io/instance label against an unstructured object
 // Uses the legacy labeling if environment variable is set
-func SetAppInstanceLabel(target *unstructured.Unstructured, key, val string) error {
+func SetAppLabel(target *unstructured.Unstructured, key, val string) error {
 	labels := target.GetLabels()
 	if labels == nil {
 		labels = make(map[string]string)
 	}
 	labels[key] = val
 	target.SetLabels(labels)
-	if key != common.LabelKeyLegacyApplicationName {
-		// we no longer label the pod template sub resources in v0.11
-		return nil
-	}
 
 	gvk := schema.FromAPIVersionAndKind(target.GetAPIVersion(), target.GetKind())
 	// special case for deployment and job types: make sure that derived replicaset, and pod has
