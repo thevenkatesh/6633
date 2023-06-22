@@ -47,6 +47,11 @@ $deselected-text: #818d94;
             height: 2em;
             filter: invert(100%);
         }
+
+        .spinner {
+            color: white;
+            font-size: 18px;
+        }
     }
 
     &__version {

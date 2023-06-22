@@ -89,6 +89,8 @@ type ArgoCDSettings struct {
 	UiBannerPermanent bool `json:"uiBannerPermanent,omitempty"`
 	// Position of UI Banner
 	UiBannerPosition string `json:"uiBannerPosition,omitempty"`
+	UiDashboardLogo  string `json:"uiDashboardLogo,omitempty"`
+	UiLoginLogo      string `json:"uiLoginLogo,omitempty"`
 	// PasswordPattern for password regular expression
 	PasswordPattern string `json:"passwordPattern,omitempty"`
 	// BinaryUrls contains the URLs for downloading argocd binaries
@@ -443,6 +445,10 @@ const (
 	settingUiBannerURLKey = "ui.bannerurl"
 	// settingUiBannerPermanentKey designates the key for whether the banner is permanent and not closeable
 	settingUiBannerPermanentKey = "ui.bannerpermanent"
+	// settingsUiDashboardLogo is the key to configure the logo rendered on the sidebar in dashboard pages
+	settingsUiDashboardLogo = "ui.dashboardlogo"
+	// settingsUiLoginLogo is the key to configure the logo rendered as hero image in the login page
+	settingsUiLoginLogo = "ui.loginlogo"
 	// settingUiBannerPositionKey designates the key for the position of the banner
 	settingUiBannerPositionKey = "ui.bannerposition"
 	// settingsBinaryUrlsKey designates the key for the argocd binary URLs
@@ -1193,7 +1199,6 @@ func (mgr *SettingsManager) GetSettings() (*ArgoCDSettings, error) {
 	if len(errs) > 0 {
 		return &settings, errs[0]
 	}
-
 	return &settings, nil
 }
 
@@ -1324,6 +1329,17 @@ func updateSettingsFromConfigMap(settings *ArgoCDSettings, argoCDCM *apiv1.Confi
 	settings.UiBannerPosition = argoCDCM.Data[settingUiBannerPositionKey]
 	settings.ServerRBACLogEnforceEnable = argoCDCM.Data[settingsServerRBACLogEnforceEnableKey] == "true"
 	settings.BinaryUrls = getDownloadBinaryUrlsFromConfigMap(argoCDCM)
+	if err := validateExternalURL(argoCDCM.Data[settingsUiDashboardLogo]); err != nil {
+		log.Warnf("Failed to validate UI dashboard logo URL in configmap: %v", err)
+	} else {
+		settings.UiDashboardLogo = argoCDCM.Data[settingsUiDashboardLogo]
+	}
+	if err := validateExternalURL(argoCDCM.Data[settingsUiLoginLogo]); err != nil {
+		log.Warnf("Failed to validate UI login logo URL in configmap: %v", err)
+	} else {
+		settings.UiLoginLogo = argoCDCM.Data[settingsUiLoginLogo]
+	}
+	settings.UiLoginLogo = argoCDCM.Data[settingsUiLoginLogo]
 	if err := validateExternalURL(argoCDCM.Data[settingURLKey]); err != nil {
 		log.Warnf("Failed to validate URL in configmap: %v", err)
 	}
