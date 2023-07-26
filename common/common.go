@@ -319,6 +319,10 @@ const (
 	GRPCKeepAliveEnforcementMinimum = 10 * time.Second
 	// GRPCKeepAliveTime is 2x enforcement minimum to ensure network jitter does not introduce ENHANCE_YOUR_CALM errors
 	GRPCKeepAliveTime = 2 * GRPCKeepAliveEnforcementMinimum
+	// EnvArgoCDgRPCMaxSizeMB is the environment variable to look for a max gRPC message size
+	EnvArgoCDgRPCMaxSizeMB = "ARGOCD_GRPC_MAX_SIZE_MB"
+	// EnvArgoCDgRPCMaxRetries is the environment variable to look for a max gRPC retries
+	EnvArgoCDgRPCMaxRetries = "ARGOCD_GRPC_MAX_RETRIES"
 )
 
 // Security severity logging

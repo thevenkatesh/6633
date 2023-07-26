@@ -3,6 +3,7 @@ package apiclient
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"math"
 	"time"
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
@@ -13,15 +14,19 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/argoproj/argo-cd/v2/common"
+	"github.com/argoproj/argo-cd/v2/util/env"
 	argogrpc "github.com/argoproj/argo-cd/v2/util/grpc"
 	"github.com/argoproj/argo-cd/v2/util/io"
 )
 
 //go:generate go run github.com/vektra/mockery/v2@v2.15.0 --name=RepoServerServiceClient
 
-const (
+var (
 	// MaxGRPCMessageSize contains max grpc message size
-	MaxGRPCMessageSize = 100 * 1024 * 1024
+	MaxGRPCMessageSize = env.ParseNumFromEnv(common.EnvArgoCDgRPCMaxSizeMB, 200, 0, math.MaxInt32) * 1024 * 1024
+	// MaxGRPCRetriesNum contains max grpc retries
+	MaxGRPCRetriesNum = env.ParseNumFromEnv(common.EnvArgoCDgRPCMaxRetries, 3, 0, math.MaxInt32)
 )
 
 // TLSConfiguration describes parameters for TLS configuration to be used by a repo server API client
@@ -55,7 +60,7 @@ func (c *clientSet) NewRepoServerClient() (io.Closer, RepoServerServiceClient, e
 
 func NewConnection(address string, timeoutSeconds int, tlsConfig *TLSConfiguration) (*grpc.ClientConn, error) {
 	retryOpts := []grpc_retry.CallOption{
-		grpc_retry.WithMax(3),
+		grpc_retry.WithMax(uint(MaxGRPCRetriesNum)),
 		grpc_retry.WithBackoff(grpc_retry.BackoffLinear(1000 * time.Millisecond)),
 	}
 	unaryInterceptors := []grpc.UnaryClientInterceptor{grpc_retry.UnaryClientInterceptor(retryOpts...)}

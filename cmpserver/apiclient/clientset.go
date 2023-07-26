@@ -2,6 +2,7 @@ package apiclient
 
 import (
 	"context"
+	"math"
 	"time"
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
@@ -11,13 +12,17 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/argoproj/argo-cd/v2/common"
+	"github.com/argoproj/argo-cd/v2/util/env"
 	grpc_util "github.com/argoproj/argo-cd/v2/util/grpc"
 	"github.com/argoproj/argo-cd/v2/util/io"
 )
 
-const (
+var (
 	// MaxGRPCMessageSize contains max grpc message size
-	MaxGRPCMessageSize = 100 * 1024 * 1024
+	MaxGRPCMessageSize = env.ParseNumFromEnv(common.EnvArgoCDgRPCMaxSizeMB, 200, 0, math.MaxInt32) * 1024 * 1024
+	// MaxGRPCRetriesNum contains max grpc retries
+	MaxGRPCRetriesNum = env.ParseNumFromEnv(common.EnvArgoCDgRPCMaxRetries, 3, 0, math.MaxInt32)
 )
 
 // Clientset represents config management plugin server api clients
@@ -39,7 +44,7 @@ func (c *clientSet) NewConfigManagementPluginClient() (io.Closer, ConfigManageme
 
 func NewConnection(address string) (*grpc.ClientConn, error) {
 	retryOpts := []grpc_retry.CallOption{
-		grpc_retry.WithMax(3),
+		grpc_retry.WithMax(uint(MaxGRPCRetriesNum)),
 		grpc_retry.WithBackoff(grpc_retry.BackoffLinear(1000 * time.Millisecond)),
 	}
 	unaryInterceptors := []grpc.UnaryClientInterceptor{grpc_retry.UnaryClientInterceptor(retryOpts...)}
