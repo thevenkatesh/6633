@@ -462,3 +462,13 @@ func (a *Actions) SetTrackingLabel(trackingLabel string) *Actions {
 	fixture.SetTrackingLabel(trackingLabel)
 	return a
 }
+
+func (a *Actions) StopAPIServer() *Actions {
+	fixture.StopAPIServer()
+	return a
+}
+
+func (a *Actions) RollbackAPIServer() *Actions {
+	fixture.RollbackAPIServer()
+	return a
+}
