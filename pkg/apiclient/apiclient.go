@@ -278,6 +278,7 @@ func NewClient(opts *ClientOptions) (Client, error) {
 		}
 		c.httpClient.Transport = &http.Transport{
 			TLSClientConfig: tlsConfig,
+			Proxy:           http.ProxyFromEnvironment,
 		}
 	}
 	if !c.GRPCWeb {
