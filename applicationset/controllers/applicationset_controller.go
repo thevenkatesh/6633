@@ -501,7 +501,11 @@ func (r *ApplicationSetReconciler) generateApplications(applicationSetInfo argov
 	for _, requestedGenerator := range applicationSetInfo.Spec.Generators {
 		t, err := generators.Transform(requestedGenerator, r.Generators, applicationSetInfo.Spec.Template, &applicationSetInfo, map[string]interface{}{})
 		if err != nil {
-			log.WithError(err).WithField("generator", requestedGenerator).
+			requestedGeneratorForLog, err := json.Marshal(requestedGenerator)
+			if err != nil {
+				requestedGeneratorForLog = []byte(requestedGenerator.String())
+			}
+			log.WithError(err).WithField("generator", string(requestedGeneratorForLog)).
 				Error("error generating application from params")
 			if firstError == nil {
 				firstError = err
@@ -516,7 +520,11 @@ func (r *ApplicationSetReconciler) generateApplications(applicationSetInfo argov
 			for _, p := range a.Params {
 				app, err := r.Renderer.RenderTemplateParams(tmplApplication, applicationSetInfo.Spec.SyncPolicy, p, applicationSetInfo.Spec.GoTemplate, applicationSetInfo.Spec.GoTemplateOptions)
 				if err != nil {
-					log.WithError(err).WithField("params", a.Params).WithField("generator", requestedGenerator).
+					requestedGeneratorForLog, err := json.Marshal(requestedGenerator)
+					if err != nil {
+						requestedGeneratorForLog = []byte(requestedGenerator.String())
+					}
+					log.WithError(err).WithField("params", a.Params).WithField("generator", string(requestedGeneratorForLog)).
 						Error("error generating application from params")
 
 					if firstError == nil {

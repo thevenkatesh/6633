@@ -3,6 +3,7 @@ package generators
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"time"
 
 	"sigs.k8s.io/yaml"
@@ -59,14 +60,14 @@ func (g *ListGenerator) GenerateParams(appSetGenerator *argoprojiov1alpha1.Appli
 					for k, v := range values {
 						value, ok := v.(string)
 						if !ok {
-							return nil, fmt.Errorf("error parsing value as string %v", err)
+							return nil, fmt.Errorf("the list generator expects all elements' \"values\" to be a map of strings to strings: key %q had a value of type %q instead of a string", "values."+k, reflect.TypeOf(v).String())
 						}
 						params[fmt.Sprintf("values.%s", k)] = value
 					}
 				} else {
 					v, ok := value.(string)
 					if !ok {
-						return nil, fmt.Errorf("error parsing value as string %v", err)
+						return nil, fmt.Errorf("the list generator expects all elements' keys except \"values\" to have string-type values: key %q had a value of type %q instead of a string", key, reflect.TypeOf(value).String())
 					}
 					params[key] = v
 				}
