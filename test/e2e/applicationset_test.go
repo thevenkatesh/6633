@@ -971,7 +971,7 @@ func TestSimpleGitDirectoryGenerator(t *testing.T) {
 					{
 						Git: &v1alpha1.GitGenerator{
 							RepoURL: "https://github.com/argoproj/argocd-example-apps.git",
-							Directories: []v1alpha1.GitDirectoryGeneratorItem{
+							Directories: []v1alpha1.GitGeneratorItem{
 								{
 									Path: "*guestbook*",
 								},
@@ -1081,7 +1081,7 @@ func TestSimpleGitDirectoryGeneratorGoTemplate(t *testing.T) {
 					{
 						Git: &v1alpha1.GitGenerator{
 							RepoURL: "https://github.com/argoproj/argocd-example-apps.git",
-							Directories: []v1alpha1.GitDirectoryGeneratorItem{
+							Directories: []v1alpha1.GitGeneratorItem{
 								{
 									Path: "*guestbook*",
 								},
@@ -1190,7 +1190,7 @@ func TestSimpleGitFilesGenerator(t *testing.T) {
 					{
 						Git: &v1alpha1.GitGenerator{
 							RepoURL: "https://github.com/argoproj/applicationset.git",
-							Files: []v1alpha1.GitFileGeneratorItem{
+							Files: []v1alpha1.GitGeneratorItem{
 								{
 									Path: "examples/git-generator-files-discovery/cluster-config/**/config.json",
 								},
@@ -1300,7 +1300,7 @@ func TestSimpleGitFilesGeneratorGoTemplate(t *testing.T) {
 					{
 						Git: &v1alpha1.GitGenerator{
 							RepoURL: "https://github.com/argoproj/applicationset.git",
-							Files: []v1alpha1.GitFileGeneratorItem{
+							Files: []v1alpha1.GitGeneratorItem{
 								{
 									Path: "examples/git-generator-files-discovery/cluster-config/**/config.json",
 								},
@@ -1384,7 +1384,7 @@ func TestSimpleGitFilesPreserveResourcesOnDeletion(t *testing.T) {
 					{
 						Git: &v1alpha1.GitGenerator{
 							RepoURL: "https://github.com/argoproj/applicationset.git",
-							Files: []v1alpha1.GitFileGeneratorItem{
+							Files: []v1alpha1.GitGeneratorItem{
 								{
 									Path: "examples/git-generator-files-discovery/cluster-config/**/config.json",
 								},
@@ -1445,7 +1445,7 @@ func TestSimpleGitFilesPreserveResourcesOnDeletionGoTemplate(t *testing.T) {
 					{
 						Git: &v1alpha1.GitGenerator{
 							RepoURL: "https://github.com/argoproj/applicationset.git",
-							Files: []v1alpha1.GitFileGeneratorItem{
+							Files: []v1alpha1.GitGeneratorItem{
 								{
 									Path: "examples/git-generator-files-discovery/cluster-config/**/config.json",
 								},
@@ -2364,7 +2364,7 @@ func TestGitGeneratorPrivateRepo(t *testing.T) {
 					{
 						Git: &v1alpha1.GitGenerator{
 							RepoURL: fixture.RepoURL(fixture.RepoURLTypeHTTPS),
-							Directories: []v1alpha1.GitDirectoryGeneratorItem{
+							Directories: []v1alpha1.GitGeneratorItem{
 								{
 									Path: "*kustomize*",
 								},
@@ -2440,7 +2440,7 @@ func TestGitGeneratorPrivateRepoGoTemplate(t *testing.T) {
 					{
 						Git: &v1alpha1.GitGenerator{
 							RepoURL: fixture.RepoURL(fixture.RepoURLTypeHTTPS),
-							Directories: []v1alpha1.GitDirectoryGeneratorItem{
+							Directories: []v1alpha1.GitGeneratorItem{
 								{
 									Path: "*kustomize*",
 								},
