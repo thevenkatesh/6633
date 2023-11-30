@@ -380,6 +380,10 @@ export interface ResourceNode extends ResourceRef {
     createdAt?: models.Time;
 }
 
+export interface ResourceActionParameters {
+    name: string;
+    value: string;
+}
 export interface ApplicationTree {
     nodes: ResourceNode[];
     orphanedNodes: ResourceNode[];
@@ -778,6 +782,10 @@ export interface ResourceAction {
     disabled: boolean;
     iconClass: string;
     displayName: string;
+    defaultValue: string;
+    regexp: string;
+    hasParameters: boolean;
+    errorMessage: string;
 }
 
 export interface SyncWindowsState {
