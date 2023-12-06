@@ -377,6 +377,13 @@ argocd cluster rm cluster-name`,
 
 			for _, clusterSelector := range args {
 				clusterQuery := getQueryBySelector(clusterSelector)
+
+				// Point users wishing to remove in-cluster to the correct setting
+				if clusterQuery.Server == "https://kubernetes.default.svc" {
+					fmt.Println("The 'in-cluster' cannot be removed. To disable it, set 'cluster.inClusterEnabled: \"false\"' in the argocd-cm ConfigMap.")
+					continue
+				}
+
 				var lowercaseAnswer string
 				if !noPrompt {
 					if numOfClusters == 1 {
@@ -498,7 +505,7 @@ argocd cluster list -o json --server <ARGOCD_SERVER_ADDRESS>
 # List Clusters in YAML Format
 argocd cluster list -o yaml --server <ARGOCD_SERVER_ADDRESS>
 
-# List Clusters that have been added to your Argo CD 
+# List Clusters that have been added to your Argo CD
 argocd cluster list -o server <ARGOCD_SERVER_ADDRESS>
 
 `,
