@@ -381,7 +381,6 @@ argocd cluster rm cluster-name`,
 				// Point users wishing to remove in-cluster to the correct setting
 				if clusterQuery.Server == argoappv1.KubernetesInternalAPIServerAddr {
 					errors.Fatalf(errors.ErrorGeneric, "The 'in-cluster' cannot be removed. To disable it, set 'cluster.inClusterEnabled: \"false\"' in the argocd-cm ConfigMap.")
-
 				}
 
 				var lowercaseAnswer string
