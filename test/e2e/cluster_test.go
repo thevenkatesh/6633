@@ -345,3 +345,38 @@ func TestClusterDelete(t *testing.T) {
 		t.Errorf("Expected error from not finding clusterrolebinding argocd-manager-role-binding but got:\n%s", output)
 	}
 }
+
+func TestClusterDeleteInternalDenied(t *testing.T) {
+	accountFixture.Given(t).
+		Name("default").
+		When().
+		Create().
+		Login().
+		SetPermissions([]fixture.ACL{
+			{
+				Resource: "clusters",
+				Action:   "create",
+				Scope:    ProjectName + "/*",
+			},
+			{
+				Resource: "clusters",
+				Action:   "get",
+				Scope:    ProjectName + "/*",
+			},
+			{
+				Resource: "clusters",
+				Action:   "delete",
+				Scope:    ProjectName + "/*",
+			},
+		}, "org-admin")
+
+	clusterFixture.
+		GivenWithSameState(t).
+		Name("in-cluster").
+		When().
+		DeleteByName().
+		Then().
+		AndCLIOutput(func(output string, err error) {
+			assert.Contains(t, err.Error(), "The 'in-cluster' cannot be removed. To disable it, set 'cluster.inClusterEnabled: \"false\"' in the argocd-cm ConfigMap.")
+		})
+}
