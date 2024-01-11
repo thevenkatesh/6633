@@ -256,7 +256,7 @@ func TestClusterDeleteDenied(t *testing.T) {
 		DeleteByName().
 		Then().
 		AndCLIOutput(func(output string, err error) {
-			assert.Contains(t, err.Error(), "The 'in-cluster' cannot be removed. To disable it, set 'cluster.inClusterEnabled: \"false\"' in the argocd-cm ConfigMap.")
+			assert.Contains(t, err.Error(), "PermissionDenied desc = permission denied: clusters, delete")
 		})
 
 	// Attempt to remove cluster creds by server
