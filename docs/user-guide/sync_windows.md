@@ -2,9 +2,11 @@
 
 Sync windows are configurable windows of time where syncs will either be blocked or allowed. These are defined
 by a kind, which can be either `allow` or `deny`, a `schedule` in cron format and a duration along with one or 
-more of either `applications`, `namespaces` and `clusters`. Wildcards are supported. These windows affect the running 
-of both manual and automated syncs but allow an override for manual syncs which is useful if you are only interested
-in preventing automated syncs or if you need to temporarily override a window to perform a sync.
+more of either `applications`, `namespaces` and `clusters`. If more than one option is specified, by default, the enabled options will 
+be OR-ed. If you want to AND the options, you can tick the `Use AND operator` option.
+Wildcards are supported. These windows affect the running of both manual and automated syncs but allow an override 
+for manual syncs which is useful if you are only interested in preventing automated syncs or if you need to temporarily 
+override a window to perform a sync.
 
 The windows work in the following way. If there are no windows matching an application then all syncs are allowed. If there
 are any `allow` windows matching an application then syncs will only be allowed when there is an active `allow` window. If there
