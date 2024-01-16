@@ -1548,6 +1548,7 @@ type HostInfo struct {
 	Name          string             `json:"name,omitempty" protobuf:"bytes,1,name=name"`
 	ResourcesInfo []HostResourceInfo `json:"resourcesInfo,omitempty" protobuf:"bytes,2,name=resourcesInfo"`
 	SystemInfo    v1.NodeSystemInfo  `json:"systemInfo,omitempty" protobuf:"bytes,3,opt,name=systemInfo"`
+	Labels        map[string]string  `json:"labels,omitempty" protobuf:"bytes,4,opt,name=labels"`
 }
 
 // ApplicationTree holds nodes which belongs to the application
@@ -2203,6 +2204,8 @@ type AppProjectSpec struct {
 	SourceNamespaces []string `json:"sourceNamespaces,omitempty" protobuf:"bytes,12,opt,name=sourceNamespaces"`
 	// PermitOnlyProjectScopedClusters determines whether destinations can only reference clusters which are project-scoped
 	PermitOnlyProjectScopedClusters bool `json:"permitOnlyProjectScopedClusters,omitempty" protobuf:"bytes,13,opt,name=permitOnlyProjectScopedClusters"`
+	// AllowedNodeLabels contains a list of node labels that will be visible on nodes in the pod view
+	AllowedNodeLabels []string `json:"allowedNodeLabels,omitempty" protobuf:"bytes,14,name=allowedNodeLabels"`
 }
 
 // SyncWindows is a collection of sync windows in this project

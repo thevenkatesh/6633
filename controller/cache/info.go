@@ -405,6 +405,7 @@ func populateHostNodeInfo(un *unstructured.Unstructured, res *ResourceInfo) {
 		Name:       node.Name,
 		Capacity:   node.Status.Capacity,
 		SystemInfo: node.Status.NodeInfo,
+		Labels:     node.Labels,
 	}
 }
 
