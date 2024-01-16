@@ -93,6 +93,9 @@ message AppProjectSpec {
 
   // PermitOnlyProjectScopedClusters determines whether destinations can only reference clusters which are project-scoped
   optional bool permitOnlyProjectScopedClusters = 13;
+
+  // AllowedNodeLabels contains a list of node labels that will be visible on nodes in the pod view
+  repeated string allowedNodeLabels = 14;
 }
 
 // AppProjectStatus contains status information for AppProject CRs
@@ -1021,6 +1024,8 @@ message HostInfo {
   repeated HostResourceInfo resourcesInfo = 2;
 
   optional k8s.io.api.core.v1.NodeSystemInfo systemInfo = 3;
+
+  map<string, string> labels = 4;
 }
 
 // TODO: describe this type
