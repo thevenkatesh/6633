@@ -7,7 +7,7 @@ teams. Projects provide the following features:
 * restrict where apps may be deployed to (destination clusters and namespaces)
 * restrict what kinds of objects may or may not be deployed (e.g. RBAC, CRDs, DaemonSets, NetworkPolicy etc...)
 * defining project roles to provide application RBAC (bound to OIDC groups and/or JWT tokens)
-* allow node labels to be propogated to the UI (they will be visible on nodes in application pod view)
+* allow node labels to be propagated to the UI (they will be visible on nodes in application pod view)
 
 ### The Default Project
 
@@ -373,7 +373,7 @@ are a part of the same project.
 
 ## Allowed Node Labels
 
-Projects allow you to propogate node labels to the pod view of applications belonging to the project.
+Projects allow you to propagate node labels to the pod view of applications belonging to the project.
 
 ```yaml
 spec:
