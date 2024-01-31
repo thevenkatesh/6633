@@ -348,22 +348,12 @@ func TestClusterDelete(t *testing.T) {
 
 func TestClusterDeleteInternalDenied(t *testing.T) {
 	accountFixture.Given(t).
-		Name("default").
+		Name("test-account").
 		Project(ProjectName).
 		When().
 		Create().
 		Login().
 		SetPermissions([]fixture.ACL{
-			{
-				Resource: "clusters",
-				Action:   "create",
-				Scope:    ProjectName + "/*",
-			},
-			{
-				Resource: "clusters",
-				Action:   "get",
-				Scope:    ProjectName + "/*",
-			},
 			{
 				Resource: "clusters",
 				Action:   "delete",
@@ -373,8 +363,12 @@ func TestClusterDeleteInternalDenied(t *testing.T) {
 
 	clusterFixture.
 		GivenWithSameState(t).
-		Name("in-cluster").
+		Name("test-account").
+		Project(ProjectName).
+		Upsert(true).
+		Server(KubernetesInternalAPIServerAddr).
 		When().
+		Get().
 		DeleteByName().
 		Then().
 		AndCLIOutput(func(output string, err error) {
