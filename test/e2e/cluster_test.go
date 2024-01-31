@@ -349,6 +349,7 @@ func TestClusterDelete(t *testing.T) {
 func TestClusterDeleteInternalDenied(t *testing.T) {
 	accountFixture.Given(t).
 		Name("default").
+		Project(ProjectName).
 		When().
 		Create().
 		Login().
