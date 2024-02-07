@@ -3,6 +3,7 @@ package generators
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/imdario/mergo"
@@ -64,13 +65,13 @@ func (m *MergeGenerator) GenerateParams(appSetGenerator *argoprojiov1alpha1.Appl
 		return nil, fmt.Errorf("error getting param sets from generators: %w", err)
 	}
 
-	baseParamSetsByMergeKey, err := getParamSetsByMergeKey(appSetGenerator.Merge.MergeKeys, paramSetsFromGenerators[0])
+	baseParamSetsByMergeKey, err := getParamSetsByMergeKey(appSetGenerator.Merge.MergeKeys, paramSetsFromGenerators[0], appSet.Spec.GoTemplate, appSet.Spec.GoTemplateOptions)
 	if err != nil {
 		return nil, fmt.Errorf("error getting param sets by merge key: %w", err)
 	}
 
 	for _, paramSets := range paramSetsFromGenerators[1:] {
-		paramSetsByMergeKey, err := getParamSetsByMergeKey(appSetGenerator.Merge.MergeKeys, paramSets)
+		paramSetsByMergeKey, err := getParamSetsByMergeKey(appSetGenerator.Merge.MergeKeys, paramSets, appSet.Spec.GoTemplate, appSet.Spec.GoTemplateOptions)
 		if err != nil {
 			return nil, fmt.Errorf("error getting param sets by merge key: %w", err)
 		}
@@ -107,11 +108,13 @@ func (m *MergeGenerator) GenerateParams(appSetGenerator *argoprojiov1alpha1.Appl
 // getParamSetsByMergeKey converts the given list of parameter sets to a map of parameter sets where the key is the
 // unique key of the parameter set as determined by the given mergeKeys. If any two parameter sets share the same merge
 // key, getParamSetsByMergeKey will throw NonUniqueParamSets.
-func getParamSetsByMergeKey(mergeKeys []string, paramSets []map[string]interface{}) (map[string]map[string]interface{}, error) {
+func getParamSetsByMergeKey(mergeKeys []string, paramSets []map[string]interface{}, useGoTemplate bool, goTemplateOptions []string) (map[string]map[string]interface{}, error) {
 	if len(mergeKeys) < 1 {
 		return nil, ErrNoMergeKeys
 	}
 
+	// Just deduplicate the merge keys.
+	// A merge key may be just a duplicate, we only need it once.
 	deDuplicatedMergeKeys := make(map[string]bool, len(mergeKeys))
 	for _, mergeKey := range mergeKeys {
 		deDuplicatedMergeKeys[mergeKey] = false
@@ -119,19 +122,51 @@ func getParamSetsByMergeKey(mergeKeys []string, paramSets []map[string]interface
 
 	paramSetsByMergeKey := make(map[string]map[string]interface{}, len(paramSets))
 	for _, paramSet := range paramSets {
+		// The 'total' key is a set of values
 		paramSetKey := make(map[string]interface{})
+
+		// For each part of these keys, fetch the value from the paramSet
 		for mergeKey := range deDuplicatedMergeKeys {
-			paramSetKey[mergeKey] = paramSet[mergeKey]
+
+			keyTemplate := mergeKey
+			if useGoTemplate {
+				if !strings.Contains(mergeKey, "{{") && !strings.Contains(mergeKey, "}}") {
+					keyTemplate = fmt.Sprintf("{{ .%s }}", mergeKey)
+				}
+
+				fmt.Printf("MERGE KEY %s\n", mergeKey)
+				templatedMergeKey, err := replaceTemplatedString(keyTemplate, paramSet, useGoTemplate, goTemplateOptions)
+				fmt.Printf("TEMPLATED MERGE KEY %s\n", templatedMergeKey)
+				if err != nil {
+					return nil, fmt.Errorf("failed to template merge key: %w", err)
+				}
+
+				paramSetKey[mergeKey] = templatedMergeKey
+			} else {
+				paramSetKey[mergeKey] = paramSet[mergeKey]
+			}
 		}
+
+		// Convert it to json and back to a string
+		// This is necessary, as the value indexed by this key may be a complex
+		// object.
 		paramSetKeyJson, err := json.Marshal(paramSetKey)
 		if err != nil {
 			return nil, fmt.Errorf("error marshalling param set key json: %w", err)
 		}
 		paramSetKeyString := string(paramSetKeyJson)
+
+		// If this was already in the map, we have a duplicate ( and don't know )
+		// what to merge exactly
 		if _, exists := paramSetsByMergeKey[paramSetKeyString]; exists {
+			fmt.Printf("ERRR %s\n", paramSetKeyString)
+
 			return nil, fmt.Errorf("%w. Duplicate key was %s", ErrNonUniqueParamSets, paramSetKeyString)
 		}
+
+		// Otherwise insert it
 		paramSetsByMergeKey[paramSetKeyString] = paramSet
+		// fmt.Printf("%s\n", paramSetKeyString)
 	}
 
 	return paramSetsByMergeKey, nil
