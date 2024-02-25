@@ -2227,7 +2227,7 @@ type SyncWindow struct {
 	// TimeZone of the sync that will be applied to the schedule
 	TimeZone string `json:"timeZone,omitempty" protobuf:"bytes,8,opt,name=timeZone"`
 	// UseAndOperator use AND operator for matching applications, namespaces and clusters instead of the default OR operator
-	UseAndOperator bool `json:"andOperator,omitempty" protobuf:"bytes,8,opt,name=andOperator"`
+	UseAndOperator bool `json:"andOperator,omitempty" protobuf:"bytes,9,opt,name=andOperator"`
 }
 
 // HasWindows returns true if SyncWindows has one or more SyncWindow
