@@ -2394,6 +2394,7 @@ func (w *SyncWindows) Matches(app *Application) *SyncWindows {
 				continue
 			} else if !window.UseAndOperator && matched {
 				matchingWindows = append(matchingWindows, window)
+				continue
 			}
 
 			// Second check if any clusters are configured for the window
@@ -2413,10 +2414,11 @@ func (w *SyncWindows) Matches(app *Application) *SyncWindows {
 			}
 
 			// If using the AND operator and window clusters were set but did not match, break out of the loop earlier
-			if window.UseAndOperator && !matched && isSet {
+			if isSet && window.UseAndOperator && !matched {
 				continue
 			} else if !window.UseAndOperator && matched {
 				matchingWindows = append(matchingWindows, window)
+				continue
 			}
 
 			// Last check if any namespaces are configured for the window

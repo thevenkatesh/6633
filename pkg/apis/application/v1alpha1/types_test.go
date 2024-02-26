@@ -2020,7 +2020,7 @@ func TestSyncWindows_Matches(t *testing.T) {
 		proj.Spec.SyncWindows[0].Namespaces = nil
 		proj.Spec.SyncWindows[0].Applications = nil
 		windows := proj.Spec.SyncWindows.Matches(app)
-		assert.Equal(t, 2, len(*windows))
+		assert.Equal(t, 1, len(*windows))
 		proj.Spec.SyncWindows[0].Clusters = nil
 	})
 	t.Run("MatchClusterName", func(t *testing.T) {
@@ -2028,7 +2028,7 @@ func TestSyncWindows_Matches(t *testing.T) {
 		proj.Spec.SyncWindows[0].Namespaces = nil
 		proj.Spec.SyncWindows[0].Applications = nil
 		windows := proj.Spec.SyncWindows.Matches(app)
-		assert.Equal(t, 2, len(*windows))
+		assert.Equal(t, 1, len(*windows))
 		proj.Spec.SyncWindows[0].Clusters = nil
 	})
 	t.Run("MatchAppName", func(t *testing.T) {
@@ -2036,7 +2036,7 @@ func TestSyncWindows_Matches(t *testing.T) {
 		proj.Spec.SyncWindows[0].Namespaces = nil
 		proj.Spec.SyncWindows[0].Clusters = nil
 		windows := proj.Spec.SyncWindows.Matches(app)
-		assert.Equal(t, 3, len(*windows))
+		assert.Equal(t, 1, len(*windows))
 		proj.Spec.SyncWindows[0].Applications = nil
 	})
 	t.Run("MatchAppNameAndNamespace", func(t *testing.T) {
@@ -2044,7 +2044,7 @@ func TestSyncWindows_Matches(t *testing.T) {
 		proj.Spec.SyncWindows[0].Namespaces = []string{"default"}
 		proj.Spec.SyncWindows[0].Clusters = nil
 		windows := proj.Spec.SyncWindows.Matches(app)
-		assert.Equal(t, 3, len(*windows))
+		assert.Equal(t, 1, len(*windows))
 		proj.Spec.SyncWindows[0].Applications = nil
 		proj.Spec.SyncWindows[0].Namespaces = nil
 	})
@@ -2053,7 +2053,7 @@ func TestSyncWindows_Matches(t *testing.T) {
 		proj.Spec.SyncWindows[0].Clusters = []string{"clusterName"}
 		proj.Spec.SyncWindows[0].Namespaces = nil
 		windows := proj.Spec.SyncWindows.Matches(app)
-		assert.Equal(t, 3, len(*windows))
+		assert.Equal(t, 1, len(*windows))
 		proj.Spec.SyncWindows[0].Applications = nil
 		proj.Spec.SyncWindows[0].Clusters = nil
 	})
@@ -2062,7 +2062,7 @@ func TestSyncWindows_Matches(t *testing.T) {
 		proj.Spec.SyncWindows[0].Clusters = []string{"clusterName"}
 		proj.Spec.SyncWindows[0].Applications = nil
 		windows := proj.Spec.SyncWindows.Matches(app)
-		assert.Equal(t, 2, len(*windows))
+		assert.Equal(t, 1, len(*windows))
 		proj.Spec.SyncWindows[0].Namespaces = nil
 		proj.Spec.SyncWindows[0].Clusters = nil
 
@@ -2072,7 +2072,7 @@ func TestSyncWindows_Matches(t *testing.T) {
 		proj.Spec.SyncWindows[0].Namespaces = []string{"default"}
 		proj.Spec.SyncWindows[0].Clusters = []string{"clusterName"}
 		windows := proj.Spec.SyncWindows.Matches(app)
-		assert.Equal(t, 3, len(*windows))
+		assert.Equal(t, 1, len(*windows))
 		proj.Spec.SyncWindows[0].Applications = nil
 		proj.Spec.SyncWindows[0].Namespaces = nil
 		proj.Spec.SyncWindows[0].Clusters = nil
@@ -2082,7 +2082,7 @@ func TestSyncWindows_Matches(t *testing.T) {
 		proj.Spec.SyncWindows[0].Clusters = nil
 		proj.Spec.SyncWindows[0].Namespaces = nil
 		windows := proj.Spec.SyncWindows.Matches(app)
-		assert.Equal(t, 3, len(*windows))
+		assert.Equal(t, 1, len(*windows))
 		proj.Spec.SyncWindows[0].Applications = nil
 	})
 	t.Run("MatchWildcardAppNameAndNamespace", func(t *testing.T) {
@@ -2090,7 +2090,7 @@ func TestSyncWindows_Matches(t *testing.T) {
 		proj.Spec.SyncWindows[0].Namespaces = []string{"default"}
 		proj.Spec.SyncWindows[0].Clusters = nil
 		windows := proj.Spec.SyncWindows.Matches(app)
-		assert.Equal(t, 3, len(*windows))
+		assert.Equal(t, 1, len(*windows))
 		proj.Spec.SyncWindows[0].Applications = nil
 		proj.Spec.SyncWindows[0].Namespaces = nil
 	})
@@ -2099,7 +2099,7 @@ func TestSyncWindows_Matches(t *testing.T) {
 		proj.Spec.SyncWindows[0].Clusters = []string{"clusterN*"}
 		proj.Spec.SyncWindows[0].Namespaces = nil
 		windows := proj.Spec.SyncWindows.Matches(app)
-		assert.Equal(t, 3, len(*windows))
+		assert.Equal(t, 1, len(*windows))
 		proj.Spec.SyncWindows[0].Applications = nil
 		proj.Spec.SyncWindows[0].Clusters = nil
 	})
