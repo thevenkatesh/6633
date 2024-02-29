@@ -623,36 +623,62 @@ func constructAppsBaseOnName(appName string, labels, annotations, args []string,
 	}, nil
 }
 
-func constructAppsFromFileUrl(fileURL, appName string, labels, annotations, args []string, appOpts AppOptions, flags *pflag.FlagSet) ([]*argoappv1.Application, error) {
+func constructAppsFromFileUrl(fileURL, appName string, labels, annotations, args []string, appOpts AppOptions, flags *pflag.FlagSet, filterByAppName bool) ([]*argoappv1.Application, error) {
 	apps := make([]*argoappv1.Application, 0)
 	// read uri
 	err := readAppsFromURI(fileURL, &apps)
 	if err != nil {
 		return nil, err
 	}
+	filteredApps := make([]*argoappv1.Application, 0)
 	for _, app := range apps {
-		if len(args) == 1 && args[0] != app.Name {
-			return nil, fmt.Errorf("app name '%s' does not match app spec metadata.name '%s'", args[0], app.Name)
+		if filterByAppName {
+			if len(args) == 1 {
+				if appName != "" && appName != args[0] {
+					return nil, fmt.Errorf("--name argument '%s' does not match app name %s", appName, args[0])
+				}
+				appName = args[0]
+			}
+
+			if appName == app.Name {
+				SetAppSpecOptions(flags, &app.Spec, &appOpts)
+				SetParameterOverrides(app, appOpts.Parameters)
+				mergeLabels(app, labels)
+				setAnnotations(app, annotations)
+				filteredApps = append(filteredApps, app)
+			}
+		} else {
+			if len(args) == 1 && args[0] != app.Name {
+				return nil, fmt.Errorf("app name '%s' does not match app spec metadata.name '%s'", args[0], app.Name)
+			}
+			if appName != "" && appName != app.Name {
+				app.Name = appName
+			}
+			if app.Name == "" {
+				return nil, fmt.Errorf("app.Name is empty. --name argument can be used to provide app.Name")
+			}
+			SetAppSpecOptions(flags, &app.Spec, &appOpts)
+			SetParameterOverrides(app, appOpts.Parameters)
+			mergeLabels(app, labels)
+			setAnnotations(app, annotations)
+			filteredApps = append(filteredApps, app)
 		}
-		if appName != "" && appName != app.Name {
-			app.Name = appName
-		}
-		if app.Name == "" {
-			return nil, fmt.Errorf("app.Name is empty. --name argument can be used to provide app.Name")
-		}
-		SetAppSpecOptions(flags, &app.Spec, &appOpts)
-		SetParameterOverrides(app, appOpts.Parameters)
-		mergeLabels(app, labels)
-		setAnnotations(app, annotations)
 	}
-	return apps, nil
+
+	if filterByAppName {
+		if len(filteredApps) == 0 {
+			return nil, fmt.Errorf("App name '%s' does not match any app spec in '%s'", appName, fileURL)
+		}
+	}
+
+	return filteredApps, nil
 }
 
-func ConstructApps(fileURL, appName string, labels, annotations, args []string, appOpts AppOptions, flags *pflag.FlagSet) ([]*argoappv1.Application, error) {
+func ConstructApps(fileURL, appName string, labels, annotations, args []string, appOpts AppOptions, flags *pflag.FlagSet, filterByAppName bool) ([]*argoappv1.Application, error) {
 	if fileURL == "-" {
 		return constructAppsFromStdin()
 	} else if fileURL != "" {
-		return constructAppsFromFileUrl(fileURL, appName, labels, annotations, args, appOpts, flags)
+		return constructAppsFromFileUrl(fileURL, appName, labels, annotations, args, appOpts, flags, filterByAppName)
 	}
 	return constructAppsBaseOnName(appName, labels, annotations, args, appOpts, flags)
 }
