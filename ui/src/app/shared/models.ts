@@ -726,6 +726,7 @@ export interface ProjectSpec {
     signatureKeys: ProjectSignatureKey[];
     orphanedResources?: {warn?: boolean; ignore: OrphanedResource[]};
     syncWindows?: SyncWindows;
+    allowedNodeLabels?: string[];
 }
 
 export type SyncWindows = SyncWindow[];
@@ -914,6 +915,7 @@ export interface Node {
     name: string;
     systemInfo: NodeSystemInfo;
     resourcesInfo: HostResourceInfo[];
+    labels: {[name: string]: string};
 }
 
 export interface NodeSystemInfo {

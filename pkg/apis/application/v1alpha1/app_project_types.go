@@ -15,6 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 // AppProjectList is list of AppProject resources
@@ -245,6 +246,20 @@ func (p *AppProject) ValidateProject() error {
 				return status.Errorf(codes.OutOfRange, "window '%s':'%s':'%s' requires one of application, cluster or namespace", window.Kind, window.Schedule, window.Duration)
 			}
 			existingWindows[window.Kind+window.Schedule+window.Duration] = true
+		}
+	}
+
+	if p.Spec.AllowedNodeLabels != nil {
+		allowedNodeLabels := make(map[string]bool)
+		for _, label := range p.Spec.AllowedNodeLabels {
+			if errs := validation.IsQualifiedName(label); len(errs) != 0 {
+				return status.Errorf(codes.InvalidArgument, "label '%s' has an invalid format", label)
+			}
+
+			if _, ok := allowedNodeLabels[label]; ok {
+				return status.Errorf(codes.InvalidArgument, "label '%s' already added", label)
+			}
+			allowedNodeLabels[label] = true
 		}
 	}
 

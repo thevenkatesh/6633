@@ -469,6 +469,21 @@ func schema_pkg_apis_application_v1alpha1_AppProjectSpec(ref common.ReferenceCal
 							Format:      "",
 						},
 					},
+					"allowedNodeLabels": {
+						SchemaProps: spec.SchemaProps{
+							Description: "AllowedNodeLabels contains a list of node labels that will be visible on nodes in the pod view",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 		},
@@ -3652,6 +3667,21 @@ func schema_pkg_apis_application_v1alpha1_HostInfo(ref common.ReferenceCallback)
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
 							Ref:     ref("k8s.io/api/core/v1.NodeSystemInfo"),
+						},
+					},
+					"labels": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
 						},
 					},
 				},

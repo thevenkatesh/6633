@@ -1716,6 +1716,14 @@ func TestProcessRequestedAppOperation_HasRetriesTerminated(t *testing.T) {
 
 func TestGetAppHosts(t *testing.T) {
 	app := newFakeApp()
+	proj := &v1alpha1.AppProject{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "default", Namespace: test.FakeArgoCDNamespace,
+		},
+		Spec: v1alpha1.AppProjectSpec{
+			AllowedNodeLabels: []string{"foo"},
+		},
+	}
 	data := &fakeData{
 		apps: []runtime.Object{app, &defaultProj},
 		manifestResponse: &apiclient.ManifestResponse{
@@ -1735,6 +1743,7 @@ func TestGetAppHosts(t *testing.T) {
 			Name:       "minikube",
 			SystemInfo: corev1.NodeSystemInfo{OSImage: "debian"},
 			Capacity:   map[corev1.ResourceName]resource.Quantity{corev1.ResourceCPU: resource.MustParse("5")},
+			Labels:     map[string]string{"foo": "bar"},
 		}})
 
 		// app pod
@@ -1761,7 +1770,7 @@ func TestGetAppHosts(t *testing.T) {
 			Name:  "Host",
 			Value: "Minikube",
 		}},
-	}})
+	}}, proj)
 
 	assert.NoError(t, err)
 	assert.Equal(t, []v1alpha1.HostInfo{{
@@ -1769,7 +1778,9 @@ func TestGetAppHosts(t *testing.T) {
 		SystemInfo: corev1.NodeSystemInfo{OSImage: "debian"},
 		ResourcesInfo: []v1alpha1.HostResourceInfo{{
 			ResourceName: corev1.ResourceCPU, Capacity: 5000, RequestedByApp: 1000, RequestedByNeighbors: 2000},
-		}}}, hosts)
+		},
+		Labels: map[string]string{"foo": "bar"},
+	}}, hosts)
 }
 
 func TestMetricsExpiration(t *testing.T) {

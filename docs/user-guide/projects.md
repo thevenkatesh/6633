@@ -7,6 +7,7 @@ teams. Projects provide the following features:
 * restrict where apps may be deployed to (destination clusters and namespaces)
 * restrict what kinds of objects may or may not be deployed (e.g. RBAC, CRDs, DaemonSets, NetworkPolicy etc...)
 * defining project roles to provide application RBAC (bound to OIDC groups and/or JWT tokens)
+* allow node labels to be propagated to the UI (they will be visible on nodes in application pod view)
 
 ### The Default Project
 
@@ -369,3 +370,20 @@ spec:
 
 With this set, the application above would no longer be allowed to be synced to any cluster other than the ones which 
 are a part of the same project.    
+
+## Allowed Node Labels
+
+Projects allow you to propagate node labels to the pod view of applications belonging to the project.
+
+```yaml
+spec:
+  allowedNodeLabels:
+  - topology.kubernetes.io/zone
+  - karpenter.sh/capacity-type
+```
+
+The labels can also be managed with the following commands:
+```bash
+argocd proj add-node-label <PROJECT> <LABEL>
+argocd proj remove-node-label <PROJECT> <LABEL>
+```

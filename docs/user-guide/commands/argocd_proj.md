@@ -81,6 +81,7 @@ argocd proj [flags]
 
 * [argocd](argocd.md)	 - argocd controls a Argo CD server
 * [argocd proj add-destination](argocd_proj_add-destination.md)	 - Add project destination
+* [argocd proj add-node-label](argocd_proj_add-node-label.md)	 - Add allowed node label
 * [argocd proj add-orphaned-ignore](argocd_proj_add-orphaned-ignore.md)	 - Add a resource to orphaned ignore list
 * [argocd proj add-signature-key](argocd_proj_add-signature-key.md)	 - Add GnuPG signature key to project
 * [argocd proj add-source](argocd_proj_add-source.md)	 - Add project source repository
@@ -94,6 +95,7 @@ argocd proj [flags]
 * [argocd proj get](argocd_proj_get.md)	 - Get project details
 * [argocd proj list](argocd_proj_list.md)	 - List projects
 * [argocd proj remove-destination](argocd_proj_remove-destination.md)	 - Remove project destination
+* [argocd proj remove-node-label](argocd_proj_remove-node-label.md)	 - Remove allowed node label
 * [argocd proj remove-orphaned-ignore](argocd_proj_remove-orphaned-ignore.md)	 - Remove a resource from orphaned ignore list
 * [argocd proj remove-signature-key](argocd_proj_remove-signature-key.md)	 - Remove GnuPG signature key from project
 * [argocd proj remove-source](argocd_proj_remove-source.md)	 - Remove project source repository
