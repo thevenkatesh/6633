@@ -1481,6 +1481,12 @@ func TestListApps(t *testing.T) {
 
 	expectedApps := map[string]string{
 		"Kustomization":                     "Kustomize",
+		"app-include-exclude":               "Directory",
+		"app-include-exclude/subdir":        "Directory",
+		"concatenated":                      "Directory",
+		"utf-16":                            "Directory",
+		"invalid-metadata":                  "Directory",
+		"nil-metadata-accessors":            "Directory",
 		"app-parameters/multi":              "Kustomize",
 		"app-parameters/single-app-only":    "Kustomize",
 		"app-parameters/single-global":      "Kustomize",
