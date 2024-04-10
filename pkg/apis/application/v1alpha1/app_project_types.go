@@ -343,6 +343,24 @@ func (proj AppProject) IsGroupKindPermitted(gk schema.GroupKind, namespaced bool
 	return isWhiteListed && !isBlackListed
 }
 
+// IsGroupKindReadPermitted validates if the given resource group/kind is permitted to be read in the project
+func (proj AppProject) IsGroupKindReadPermitted(gk schema.GroupKind, namespaced bool) bool {
+	var isWhiteListed, isBlackListed, isReadWhitelisted bool
+	res := metav1.GroupKind{Group: gk.Group, Kind: gk.Kind}
+
+	if namespaced {
+		isWhiteListed = proj.Spec.NamespaceResourceWhitelist == nil || len(proj.Spec.NamespaceResourceWhitelist) != 0 && isResourceInList(res, proj.Spec.NamespaceResourceWhitelist)
+		isBlackListed = len(proj.Spec.NamespaceResourceBlacklist) != 0 && isResourceInList(res, proj.Spec.NamespaceResourceBlacklist)
+		isReadWhitelisted = isResourceInList(res, proj.Spec.NamespaceResourceReadWhitelist)
+	} else {
+		isWhiteListed = proj.Spec.ClusterResourceWhitelist == nil || len(proj.Spec.ClusterResourceWhitelist) != 0 && isResourceInList(res, proj.Spec.ClusterResourceWhitelist)
+		isBlackListed = len(proj.Spec.ClusterResourceBlacklist) != 0 && isResourceInList(res, proj.Spec.ClusterResourceBlacklist)
+		isReadWhitelisted = isResourceInList(res, proj.Spec.ClusterResourceReadWhitelist)
+	}
+
+	return isReadWhitelisted || (isWhiteListed && !isBlackListed)
+}
+
 // IsLiveResourcePermitted returns whether a live resource found in the cluster is permitted by an AppProject
 func (proj AppProject) IsLiveResourcePermitted(un *unstructured.Unstructured, server string, name string, projectClusters func(project string) ([]*Cluster, error)) (bool, error) {
 	return proj.IsResourcePermitted(un.GroupVersionKind().GroupKind(), un.GetNamespace(), ApplicationDestination{Server: server, Name: name}, projectClusters)
@@ -350,6 +368,16 @@ func (proj AppProject) IsLiveResourcePermitted(un *unstructured.Unstructured, se
 
 func (proj AppProject) IsResourcePermitted(groupKind schema.GroupKind, namespace string, dest ApplicationDestination, projectClusters func(project string) ([]*Cluster, error)) (bool, error) {
 	if !proj.IsGroupKindPermitted(groupKind, namespace != "") {
+		return false, nil
+	}
+	if namespace != "" {
+		return proj.IsDestinationPermitted(ApplicationDestination{Server: dest.Server, Name: dest.Name, Namespace: namespace}, projectClusters)
+	}
+	return true, nil
+}
+
+func (proj AppProject) IsResourceReadPermitted(groupKind schema.GroupKind, namespace string, dest ApplicationDestination, projectClusters func(project string) ([]*Cluster, error)) (bool, error) {
+	if !proj.IsGroupKindReadPermitted(groupKind, namespace != "") {
 		return false, nil
 	}
 	if namespace != "" {
