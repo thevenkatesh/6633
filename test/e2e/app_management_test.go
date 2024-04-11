@@ -104,6 +104,187 @@ func TestGetLogsDenySwitchOn(t *testing.T) {
 		})
 }
 
+func TestGetLogsDenyAfterChangeExtraConfigMap(t *testing.T) {
+	SkipOnEnv(t, "OPENSHIFT")
+
+	accountFixture.Given(t).
+		Name("test").
+		When().
+		Create().
+		Login().
+		SetExtraPermissions([]fixture.ACL{
+			{
+				Resource: "applications",
+				Action:   "create",
+				Scope:    "*",
+			},
+			{
+				Resource: "applications",
+				Action:   "get",
+				Scope:    "*",
+			},
+			{
+				Resource: "applications",
+				Action:   "sync",
+				Scope:    "*",
+			},
+			{
+				Resource: "projects",
+				Action:   "get",
+				Scope:    "*",
+			},
+			{
+				Resource: "logs",
+				Action:   "get",
+				Scope:    "*",
+			},
+		}, "app-creator")
+
+	GivenWithSameState(t).
+		Path("guestbook-logs").
+		When().
+		CreateApp().
+		Sync().
+		SetParamInSettingConfigMap("server.rbac.log.enforce.enable", "true").
+		Then().
+		Expect(HealthIs(health.HealthStatusHealthy)).
+		And(func(app *Application) {
+			out, err := RunCliWithRetry(appLogsRetryCount, "app", "logs", app.Name, "--kind", "Deployment", "--group", "", "--name", "guestbook-ui")
+			assert.NoError(t, err)
+			assert.Contains(t, out, "Hi")
+		}).
+		And(func(app *Application) {
+			out, err := RunCliWithRetry(appLogsRetryCount, "app", "logs", app.Name, "--kind", "Pod")
+			assert.NoError(t, err)
+			assert.Contains(t, out, "Hi")
+		}).
+		And(func(app *Application) {
+			out, err := RunCliWithRetry(appLogsRetryCount, "app", "logs", app.Name, "--kind", "Service")
+			assert.NoError(t, err)
+			assert.NotContains(t, out, "Hi")
+		})
+
+	accountFixture.GivenWithSameState(t).
+		Name("test").
+		When().
+		Create().
+		Login().
+		SetExtraPermissions([]fixture.ACL{
+			{
+				Resource: "applications",
+				Action:   "create",
+				Scope:    "*",
+			},
+			{
+				Resource: "applications",
+				Action:   "get",
+				Scope:    "*",
+			},
+			{
+				Resource: "applications",
+				Action:   "sync",
+				Scope:    "*",
+			},
+			{
+				Resource: "projects",
+				Action:   "get",
+				Scope:    "*",
+			},
+		}, "app-creator")
+
+	GivenWithSameState(t).
+		Path("guestbook-logs").
+		When().
+		CreateApp().
+		Sync().
+		SetParamInSettingConfigMap("server.rbac.log.enforce.enable", "true").
+		Then().
+		Expect(HealthIs(health.HealthStatusHealthy)).
+		And(func(app *Application) {
+			_, err := RunCliWithRetry(appLogsRetryCount, "app", "logs", app.Name, "--kind", "Deployment", "--group", "", "--name", "guestbook-ui")
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), "permission denied")
+		})
+
+}
+
+func TestGetLogsDenyAfterDeleteExtraConfigMap(t *testing.T) {
+	SkipOnEnv(t, "OPENSHIFT")
+
+	accountFixture.Given(t).
+		Name("test").
+		When().
+		Create().
+		Login().
+		SetExtraPermissions([]fixture.ACL{
+			{
+				Resource: "applications",
+				Action:   "create",
+				Scope:    "*",
+			},
+			{
+				Resource: "applications",
+				Action:   "get",
+				Scope:    "*",
+			},
+			{
+				Resource: "applications",
+				Action:   "sync",
+				Scope:    "*",
+			},
+			{
+				Resource: "projects",
+				Action:   "get",
+				Scope:    "*",
+			},
+			{
+				Resource: "logs",
+				Action:   "get",
+				Scope:    "*",
+			},
+		}, "app-creator")
+
+	GivenWithSameState(t).
+		Path("guestbook-logs").
+		When().
+		CreateApp().
+		Sync().
+		SetParamInSettingConfigMap("server.rbac.log.enforce.enable", "true").
+		Then().
+		Expect(HealthIs(health.HealthStatusHealthy)).
+		And(func(app *Application) {
+			out, err := RunCliWithRetry(appLogsRetryCount, "app", "logs", app.Name, "--kind", "Deployment", "--group", "", "--name", "guestbook-ui")
+			assert.NoError(t, err)
+			assert.Contains(t, out, "Hi")
+		}).
+		And(func(app *Application) {
+			out, err := RunCliWithRetry(appLogsRetryCount, "app", "logs", app.Name, "--kind", "Pod")
+			assert.NoError(t, err)
+			assert.Contains(t, out, "Hi")
+		}).
+		And(func(app *Application) {
+			out, err := RunCliWithRetry(appLogsRetryCount, "app", "logs", app.Name, "--kind", "Service")
+			assert.NoError(t, err)
+			assert.NotContains(t, out, "Hi")
+		})
+
+	accountFixture.GivenWithSameState(t).
+		Name("test").
+		When().
+		ClearExtraPermissions()
+
+	GivenWithSameState(t).
+		Path("guestbook-logs").
+		When().
+		Then().
+		And(func(app *Application) {
+			_, err := RunCliWithRetry(appLogsRetryCount, "app", "logs", app.Name, "--kind", "Deployment", "--group", "", "--name", "guestbook-ui")
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), "permission denied")
+		})
+
+}
+
 func TestGetLogsAllowSwitchOn(t *testing.T) {
 	SkipOnEnv(t, "OPENSHIFT")
 
@@ -113,6 +294,68 @@ func TestGetLogsAllowSwitchOn(t *testing.T) {
 		Create().
 		Login().
 		SetPermissions([]fixture.ACL{
+			{
+				Resource: "applications",
+				Action:   "create",
+				Scope:    "*",
+			},
+			{
+				Resource: "applications",
+				Action:   "get",
+				Scope:    "*",
+			},
+			{
+				Resource: "applications",
+				Action:   "sync",
+				Scope:    "*",
+			},
+			{
+				Resource: "projects",
+				Action:   "get",
+				Scope:    "*",
+			},
+			{
+				Resource: "logs",
+				Action:   "get",
+				Scope:    "*",
+			},
+		}, "app-creator")
+
+	GivenWithSameState(t).
+		Path("guestbook-logs").
+		When().
+		CreateApp().
+		Sync().
+		SetParamInSettingConfigMap("server.rbac.log.enforce.enable", "true").
+		Then().
+		Expect(HealthIs(health.HealthStatusHealthy)).
+		And(func(app *Application) {
+			out, err := RunCliWithRetry(appLogsRetryCount, "app", "logs", app.Name, "--kind", "Deployment", "--group", "", "--name", "guestbook-ui")
+			assert.NoError(t, err)
+			assert.Contains(t, out, "Hi")
+		}).
+		And(func(app *Application) {
+			out, err := RunCliWithRetry(appLogsRetryCount, "app", "logs", app.Name, "--kind", "Pod")
+			assert.NoError(t, err)
+			assert.Contains(t, out, "Hi")
+		}).
+		And(func(app *Application) {
+			out, err := RunCliWithRetry(appLogsRetryCount, "app", "logs", app.Name, "--kind", "Service")
+			assert.NoError(t, err)
+			assert.NotContains(t, out, "Hi")
+		})
+
+}
+
+func TestGetLogsAllowSwitchOnExtraConfigMap(t *testing.T) {
+	SkipOnEnv(t, "OPENSHIFT")
+
+	accountFixture.Given(t).
+		Name("test").
+		When().
+		Create().
+		Login().
+		SetExtraPermissions([]fixture.ACL{
 			{
 				Resource: "applications",
 				Action:   "create",
