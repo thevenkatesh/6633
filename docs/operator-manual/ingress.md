@@ -32,7 +32,8 @@ metadata:
   name: argocd-server-cli
   namespace: argocd
 spec:
-  # NOTE: the port must be ignored if you have strip_matching_host_port enabled on envoy
+  # NOTE: the port must be ignored if you have strip_matching_host_port enabled
+  # on envoy
   host: argocd.example.com:443
   prefix: /
   service: argocd-server:80
@@ -256,8 +257,8 @@ metadata:
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/ssl-passthrough: "true"
-    # If you encounter a redirect loop or are getting a 307 response code
-    # then you need to force the nginx ingress to connect to the backend using HTTPS.
+    # If you encounter a redirect loop or are getting a 307 response code then
+    # you need to force the nginx ingress to connect to the backend using HTTPS.
     #
     nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
 spec:
@@ -421,7 +422,8 @@ Once we create this service, we can configure the Ingress to conditionally route
   metadata:
     annotations:
       alb.ingress.kubernetes.io/backend-protocol: HTTPS
-      # Use this annotation (which must match a service name) to route traffic to HTTP2 backends.
+      # Use this annotation (which must match a service name) to route traffic
+      # to HTTP2 backends.
       alb.ingress.kubernetes.io/conditions.argogrpc: |
         [{"field":"http-header","httpHeaderConfig":{"httpHeaderName": "Content-Type", "values":["application/grpc"]}}]
       alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
@@ -704,7 +706,8 @@ spec:
       http:
         paths:
         - pathType: ImplementationSpecific
-          path: "/*"   # "*" is needed. Without this, the UI Javascript and CSS will not load properly
+          path: "/*"   # "*" is needed. Without this, the UI Javascript and CSS
+                       # will not load properly
           backend:
             service:
               name: argocd-server

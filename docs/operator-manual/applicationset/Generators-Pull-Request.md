@@ -12,7 +12,9 @@ spec:
   goTemplateOptions: ["missingkey=error"]
   generators:
   - pullRequest:
-      # When using a Pull Request generator, the ApplicationSet controller polls every `requeueAfterSeconds` interval (defaulting to every 30 minutes) to detect changes.
+      # When using a Pull Request generator, the ApplicationSet controller polls
+      # every `requeueAfterSeconds` interval (defaulting to every 30 minutes) to
+      # detect changes.
       requeueAfterSeconds: 1800
       # See below for provider specific options.
       github:
@@ -97,7 +99,8 @@ spec:
         - preview
         # MR state is used to filter MRs only with a certain state. (optional)
         pullRequestState: opened
-        # If true, skips validating the SCM provider's TLS certificate - useful for self-signed certificates.
+        # If true, skips validating the SCM provider's TLS certificate - useful
+        # for self-signed certificates.
         insecure: false
       requeueAfterSeconds: 1800
   template:
@@ -138,7 +141,8 @@ spec:
         tokenRef:
           secretName: gitea-token
           key: token
-        # many gitea deployments use TLS, but many are self-hosted and self-signed certificates
+        # many gitea deployments use TLS, but many are self-hosted and
+        # self-signed certificates
         insecure: true
       requeueAfterSeconds: 1800
   template:
@@ -170,16 +174,18 @@ spec:
         repo: myrepository
         # URL of the Bitbucket Server. Required.
         api: https://mycompany.bitbucket.org
-        # Credentials for Basic authentication. Required for private repositories.
+        # Credentials for Basic authentication. Required for private
+        # repositories.
         basicAuth:
           # The username to authenticate with
           username: myuser
-          # Reference to a Secret containing the password or personal access token.
+          # Reference to a Secret containing the password or personal access
+          # token.
           passwordRef:
             secretName: mypassword
             key: password
-      # Labels are not supported by Bitbucket Server, so filtering by label is not possible.
-      # Filter PRs using the source branch name. (optional)
+      # Labels are not supported by Bitbucket Server, so filtering by label is
+      # not possible. Filter PRs using the source branch name. (optional)
       filters:
       - branchMatch: ".*-argocd"
   template:
@@ -214,25 +220,29 @@ spec:
           owner: myproject
           # Repository slug. Required.
           repo: myrepository
-          # URL of the Bitbucket Server. (optional) Will default to 'https://api.bitbucket.org/2.0'.
+          # URL of the Bitbucket Server. (optional) Will default to
+          # 'https://api.bitbucket.org/2.0'.
           api: https://api.bitbucket.org/2.0
-          # Credentials for Basic authentication (App Password). Either basicAuth or bearerToken
-          # authentication is required to access private repositories
+          # Credentials for Basic authentication (App Password). Either
+          # basicAuth or bearerToken authentication is required to access
+          # private repositories
           basicAuth:
             # The username to authenticate with
             username: myuser
-            # Reference to a Secret containing the password or personal access token.
+            # Reference to a Secret containing the password or personal access
+            # token.
             passwordRef:
               secretName: mypassword
               key: password
-          # Credentials for Bearer Token (App Token) authentication. Either basicAuth or bearerToken
-          # authentication is required to access private repositories
+          # Credentials for Bearer Token (App Token) authentication. Either
+          # basicAuth or bearerToken authentication is required to access
+          # private repositories
           bearerToken:
             tokenRef:
               secretName: repotoken
               key: token
-        # Labels are not supported by Bitbucket Cloud, so filtering by label is not possible.
-        # Filter PRs using the source branch name. (optional)
+        # Labels are not supported by Bitbucket Cloud, so filtering by label is
+        # not possible. Filter PRs using the source branch name. (optional)
         filters:
           - branchMatch: ".*-argocd"
   template:
@@ -274,7 +284,8 @@ spec:
         project: myproject
         # Azure DevOps repo name to scan. Required.
         repo: myrepository
-        # The Azure DevOps API URL to talk to. If blank, use https://dev.azure.com/.
+        # The Azure DevOps API URL to talk to. If blank, use
+        # https://dev.azure.com/.
         api: https://dev.azure.com/
         # Reference to a Secret containing an access token. (optional)
         tokenRef:
