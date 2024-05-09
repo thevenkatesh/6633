@@ -29,7 +29,7 @@ The important part to note here is that group-membership is a non-standard claim
 
 `kubectl edit configmap argocd-cm`
 
-```
+```yaml
 ...
 data:
   application.instanceLabelKey: argocd.argoproj.io/instance
@@ -52,14 +52,16 @@ data:
 ### Configure RBAC for ArgoCD
 
 `kubectl edit configmap argocd-rbac-cm` (or use helm values).
-```
+```yaml
 ...
 data:
   policy.csv: |
     # let members with group someProjectGroup handle apps in someProject
-    # this can also be defined in the UI in the group-definition to avoid doing it there in the configmap
+    # this can also be defined in the UI in the group-definition to avoid doing
+    # it there in the configmap
     p, someProjectGroup, applications, *, someProject/*, allow
-    # let the group membership argocd-admins from OIDC become role:admin - needs to go into the configmap
+    # let the group membership argocd-admins from OIDC become role:admin - needs
+    # to go into the configmap
     g, argocd-global-admins, role:admin
   policy.default: role:readonly
   # essential to get argo to use groups for RBAC:
