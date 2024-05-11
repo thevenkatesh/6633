@@ -281,11 +281,11 @@ func getPolicy(ctx context.Context, policyFile string, kubeClient kubernetes.Int
 			log.Fatalf("could not read policy file: %v", err)
 		}
 	} else {
-		cm, err := getPolicyConfigMap(ctx, kubeClient, namespace)
+		cm, extraCMs, err := getPolicyConfigMaps(ctx, kubeClient, namespace)
 		if err != nil {
 			log.Fatalf("could not get configmap: %v", err)
 		}
-		userPolicy, defaultRole, matchMode = getPolicyFromConfigMap(cm)
+		userPolicy, defaultRole, matchMode = getPolicyFromConfigMaps(cm, extraCMs...)
 	}
 
 	return userPolicy, defaultRole, matchMode
@@ -312,14 +312,14 @@ func getPolicyFromFile(policyFile string) (string, string, string, error) {
 	if err != nil {
 		userPolicy = string(upol)
 	} else {
-		userPolicy, defaultRole, matchMode = getPolicyFromConfigMap(upolCM)
+		userPolicy, defaultRole, matchMode = getPolicyFromConfigMaps(upolCM)
 	}
 
 	return userPolicy, defaultRole, matchMode, nil
 }
 
 // Retrieve policy information from a ConfigMap
-func getPolicyFromConfigMap(cm *corev1.ConfigMap) (string, string, string) {
+func getPolicyFromConfigMaps(cm *corev1.ConfigMap, extraCMs ...corev1.ConfigMap) (string, string, string) {
 	var (
 		userPolicy  string
 		defaultRole string
@@ -338,12 +338,16 @@ func getPolicyFromConfigMap(cm *corev1.ConfigMap) (string, string, string) {
 }
 
 // getPolicyConfigMap fetches the RBAC config map from K8s cluster
-func getPolicyConfigMap(ctx context.Context, client kubernetes.Interface, namespace string) (*corev1.ConfigMap, error) {
+func getPolicyConfigMaps(ctx context.Context, client kubernetes.Interface, namespace string) (*corev1.ConfigMap, []corev1.ConfigMap, error) {
 	cm, err := client.CoreV1().ConfigMaps(namespace).Get(ctx, common.ArgoCDRBACConfigMapName, v1.GetOptions{})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return cm, nil
+	extraCMs, err := client.CoreV1().ConfigMaps(namespace).List(ctx, v1.ListOptions{LabelSelector: rbac.ExtraConfigMapLabelSelector})
+	if err != nil {
+		return nil, nil, err
+	}
+	return cm, extraCMs.Items, nil
 }
 
 // checkPolicy checks whether given subject is allowed to execute specified

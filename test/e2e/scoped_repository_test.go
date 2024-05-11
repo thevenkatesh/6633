@@ -131,6 +131,49 @@ func TestDeleteRepositoryRbacAllowed(t *testing.T) {
 		})
 }
 
+func TestDeleteRepositoryRbacAllowedExtraConfigMap(t *testing.T) {
+	accountFixture.Given(t).
+		Name("test").
+		When().
+		Create().
+		Login().
+		SetExtraPermissions([]fixture.ACL{
+			{
+				Resource: "repositories",
+				Action:   "create",
+				Scope:    "argo-project/*",
+			},
+			{
+				Resource: "repositories",
+				Action:   "delete",
+				Scope:    "argo-project/*",
+			},
+			{
+				Resource: "repositories",
+				Action:   "get",
+				Scope:    "argo-project/*",
+			},
+		}, "org-admin")
+
+	path := "https://github.com/argoproj/argo-cd.git"
+	repoFixture.Given(t, true).
+		When().
+		Path(path).
+		Project("argo-project").
+		Create().
+		Then().
+		And(func(r *Repository, err error) {
+			assert.Equal(t, r.Repo, path)
+			assert.Equal(t, r.Project, "argo-project")
+		}).
+		When().
+		Delete().
+		Then().
+		AndCLIOutput(func(output string, err error) {
+			assert.True(t, strings.Contains(output, "Repository 'https://github.com/argoproj/argo-cd.git' removed"))
+		})
+}
+
 func TestDeleteRepositoryRbacDenied(t *testing.T) {
 	accountFixture.Given(t).
 		Name("test").
