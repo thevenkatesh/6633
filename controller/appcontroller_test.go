@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/argoproj/gitops-engine/pkg/health"
 	"github.com/argoproj/gitops-engine/pkg/utils/kube/kubetest"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -486,8 +487,21 @@ func newFakeApp() *v1alpha1.Application {
 	return createFakeApp(fakeApp)
 }
 
+func newFakeAppWithHealthAndTime(status health.HealthStatusCode, timestamp metav1.Time) *v1alpha1.Application {
+	return createFakeAppWithHealthAndTime(fakeApp, status, timestamp)
+}
+
 func newFakeMultiSourceApp() *v1alpha1.Application {
 	return createFakeApp(fakeMultiSourceApp)
+}
+
+func createFakeAppWithHealthAndTime(testApp string, status health.HealthStatusCode, timestamp metav1.Time) *v1alpha1.Application {
+	app := createFakeApp(testApp)
+	app.Status.Health = v1alpha1.HealthStatus{
+		Status:             status,
+		LastTransitionTime: timestamp,
+	}
+	return app
 }
 
 func newFakeAppWithDestMismatch() *v1alpha1.Application {
