@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -97,9 +98,9 @@ func TestScmManagerPrList(t *testing.T) {
 	}))
 	defer ts.Close()
 	host, err := NewScmManagerService(context.Background(), "", ts.URL, "test-argocd", "pr-test", false, "", nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	prs, err := host.List(context.Background())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, prs, 1)
 	assert.Equal(t, 1, prs[0].Number)
 	assert.Equal(t, "test_pr", prs[0].Branch)
