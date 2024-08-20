@@ -96,7 +96,7 @@ func TestScmManagerPrList(t *testing.T) {
 		scmmMockHandler(t)(w, r)
 	}))
 	defer ts.Close()
-	host, err := NewScmManagerService(context.Background(), "", ts.URL, "test-argocd", "pr-test", false)
+	host, err := NewScmManagerService(context.Background(), "", ts.URL, "test-argocd", "pr-test", false, "", nil)
 	assert.Nil(t, err)
 	prs, err := host.List(context.Background())
 	assert.Nil(t, err)
