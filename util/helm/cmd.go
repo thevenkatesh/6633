@@ -49,7 +49,7 @@ var redactor = func(text string) string {
 	return regexp.MustCompile("(--username|--password) [^ ]*").ReplaceAllString(text, "$1 ******")
 }
 
-func (c Cmd) run(args ...string) (string, string, error) {
+func (c *Cmd) run(args ...string) (string, string, error) {
 	cmd := exec.Command("helm", args...)
 	cmd.Dir = c.WorkDir
 	cmd.Env = os.Environ()
@@ -327,6 +327,7 @@ func cleanSetParameters(val string) string {
 	return re.ReplaceAllString(val, `$1\,`)
 }
 
+// template runs the `helm template` command and returns the output as well as the full text of the command.
 func (c *Cmd) template(chartPath string, opts *TemplateOpts) (string, string, error) {
 	if callback, err := cleanupChartLockFile(filepath.Clean(path.Join(c.WorkDir, chartPath))); err == nil {
 		defer callback()
@@ -334,8 +335,11 @@ func (c *Cmd) template(chartPath string, opts *TemplateOpts) (string, string, er
 		return "", "", err
 	}
 
-	args := []string{"template", chartPath, "--name-template", opts.Name}
+	args := []string{"template", chartPath}
 
+	if opts.Name != "" {
+		args = append(args, "--name-template", opts.Name)
+	}
 	if opts.Namespace != "" {
 		args = append(args, "--namespace", opts.Namespace)
 	}
@@ -371,7 +375,7 @@ func (c *Cmd) template(chartPath string, opts *TemplateOpts) (string, string, er
 			log.Debug(msg)
 			msg = apiVersionsRemover.ReplaceAllString(msg, "<api versions removed> ")
 		}
-		return "", command, errors.New(msg)
+		return "", "", errors.New(msg)
 	}
 	return out, command, nil
 }

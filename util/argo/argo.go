@@ -231,6 +231,7 @@ func RefreshApp(appIf v1alpha1.ApplicationInterface, name string, refreshType ar
 		"metadata": map[string]interface{}{
 			"annotations": map[string]string{
 				argoappv1.AnnotationKeyRefresh: string(refreshType),
+				argoappv1.AnnotationKeyHydrate: "normal",
 			},
 		},
 	}
@@ -389,6 +390,7 @@ func validateRepo(ctx context.Context,
 		}
 		if err := TestRepoWithKnownType(ctx, repoClient, repo, source.IsHelm(), source.IsHelmOci()); err != nil {
 			errMessage = fmt.Sprintf("repositories not accessible: %v: %v", repo.StringForLogging(), err)
+			log.Debugf("Error testing repository for source %v: %v", source, err)
 		}
 		repoAccessible := false
 
@@ -417,6 +419,13 @@ func validateRepo(ctx context.Context,
 	if err != nil {
 		return nil, fmt.Errorf("error getting ref sources: %w", err)
 	}
+
+	// If using the source hydrator, check the dry source instead of the sync source, since the sync source branch may
+	// not exist yet.
+	if app.Spec.SourceHydrator != nil {
+		sources = []argoappv1.ApplicationSource{app.Spec.SourceHydrator.GetDrySource()}
+	}
+
 	conditions = append(conditions, verifyGenerateManifests(
 		ctx,
 		db,
@@ -539,11 +548,46 @@ func validateSourcePermissions(source argoappv1.ApplicationSource, hasMultipleSo
 	return conditions
 }
 
+func validateSourceHydratorPermissions(hydrator *argoappv1.SourceHydrator) []argoappv1.ApplicationCondition {
+	var conditions []argoappv1.ApplicationCondition
+	if hydrator.DrySource.RepoURL == "" {
+		conditions = append(conditions, argoappv1.ApplicationCondition{
+			Type:    argoappv1.ApplicationConditionInvalidSpecError,
+			Message: "spec.sourceHydrator.drySource.repoURL is required",
+		})
+	}
+	if hydrator.SyncSource.TargetBranch == "" {
+		conditions = append(conditions, argoappv1.ApplicationCondition{
+			Type:    argoappv1.ApplicationConditionInvalidSpecError,
+			Message: "spec.sourceHydrator.syncSource.targetBranch is required",
+		})
+	}
+	if hydrator.HydrateTo != nil && hydrator.HydrateTo.TargetBranch == "" {
+		conditions = append(conditions, argoappv1.ApplicationCondition{
+			Type:    argoappv1.ApplicationConditionInvalidSpecError,
+			Message: "when spec.sourceHydrator.hydrateTo is set, spec.sourceHydrator.hydrateTo.path is required",
+		})
+	}
+	return conditions
+}
+
 // ValidatePermissions ensures that the referenced cluster has been added to Argo CD and the app source repo and destination namespace/cluster are permitted in app project
 func ValidatePermissions(ctx context.Context, spec *argoappv1.ApplicationSpec, proj *argoappv1.AppProject, db db.ArgoDB) ([]argoappv1.ApplicationCondition, error) {
 	conditions := make([]argoappv1.ApplicationCondition, 0)
 
-	if spec.HasMultipleSources() {
+	if spec.SourceHydrator != nil {
+		condition := validateSourceHydratorPermissions(spec.SourceHydrator)
+		if len(condition) > 0 {
+			conditions = append(conditions, condition...)
+			return conditions, nil
+		}
+		if !proj.IsSourcePermitted(spec.SourceHydrator.GetDrySource()) {
+			conditions = append(conditions, argoappv1.ApplicationCondition{
+				Type:    argoappv1.ApplicationConditionInvalidSpecError,
+				Message: fmt.Sprintf("application repo %s is not permitted in project '%s'", spec.GetSource().RepoURL, spec.Project),
+			})
+		}
+	} else if spec.HasMultipleSources() {
 		for _, source := range spec.Sources {
 			condition := validateSourcePermissions(source, spec.HasMultipleSources())
 			if len(condition) > 0 {

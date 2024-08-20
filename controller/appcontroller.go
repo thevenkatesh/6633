@@ -42,6 +42,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
+	commitclient "github.com/argoproj/argo-cd/v2/commitserver/apiclient"
+
 	"github.com/argoproj/argo-cd/v2/common"
 	statecache "github.com/argoproj/argo-cd/v2/controller/cache"
 	"github.com/argoproj/argo-cd/v2/controller/metrics"
@@ -121,6 +123,8 @@ type ApplicationController struct {
 	appComparisonTypeRefreshQueue workqueue.RateLimitingInterface
 	appOperationQueue             workqueue.RateLimitingInterface
 	projectRefreshQueue           workqueue.RateLimitingInterface
+	appHydrateQueue               workqueue.RateLimitingInterface
+	hydrationQueue                workqueue.RateLimitingInterface
 	appInformer                   cache.SharedIndexInformer
 	appLister                     applisters.ApplicationLister
 	projInformer                  cache.SharedIndexInformer
@@ -131,6 +135,7 @@ type ApplicationController struct {
 	statusRefreshJitter           time.Duration
 	selfHealTimeout               time.Duration
 	repoClientset                 apiclient.Clientset
+	commitClientset               commitclient.Clientset
 	db                            db.ArgoDB
 	settingsMgr                   *settings_util.SettingsManager
 	refreshRequestedApps          map[string]CompareWith
@@ -154,6 +159,7 @@ func NewApplicationController(
 	kubeClientset kubernetes.Interface,
 	applicationClientset appclientset.Interface,
 	repoClientset apiclient.Clientset,
+	commitClientset commitclient.Clientset,
 	argoCache *appstatecache.Cache,
 	kubectl kube.Kubectl,
 	appResyncPeriod time.Duration,
@@ -186,10 +192,13 @@ func NewApplicationController(
 		kubectl:                           kubectl,
 		applicationClientset:              applicationClientset,
 		repoClientset:                     repoClientset,
+		commitClientset:                   commitClientset,
 		appRefreshQueue:                   workqueue.NewRateLimitingQueueWithConfig(ratelimiter.NewCustomAppControllerRateLimiter(rateLimiterConfig), workqueue.RateLimitingQueueConfig{Name: "app_reconciliation_queue"}),
 		appOperationQueue:                 workqueue.NewRateLimitingQueueWithConfig(ratelimiter.NewCustomAppControllerRateLimiter(rateLimiterConfig), workqueue.RateLimitingQueueConfig{Name: "app_operation_processing_queue"}),
 		projectRefreshQueue:               workqueue.NewRateLimitingQueueWithConfig(ratelimiter.NewCustomAppControllerRateLimiter(rateLimiterConfig), workqueue.RateLimitingQueueConfig{Name: "project_reconciliation_queue"}),
 		appComparisonTypeRefreshQueue:     workqueue.NewRateLimitingQueue(ratelimiter.NewCustomAppControllerRateLimiter(rateLimiterConfig)),
+		appHydrateQueue:                   workqueue.NewRateLimitingQueueWithConfig(ratelimiter.NewCustomAppControllerRateLimiter(rateLimiterConfig), workqueue.RateLimitingQueueConfig{Name: "app_hydration_queue"}),
+		hydrationQueue:                    workqueue.NewRateLimitingQueueWithConfig(ratelimiter.NewCustomAppControllerRateLimiter(rateLimiterConfig), workqueue.RateLimitingQueueConfig{Name: "manifest_hydration_queue"}),
 		db:                                db,
 		statusRefreshTimeout:              appResyncPeriod,
 		statusHardRefreshTimeout:          appHardResyncPeriod,
@@ -834,6 +843,8 @@ func (ctrl *ApplicationController) Run(ctx context.Context, statusProcessors int
 	defer ctrl.appComparisonTypeRefreshQueue.ShutDown()
 	defer ctrl.appOperationQueue.ShutDown()
 	defer ctrl.projectRefreshQueue.ShutDown()
+	defer ctrl.appHydrateQueue.ShutDown()
+	defer ctrl.hydrationQueue.ShutDown()
 
 	ctrl.metricsServer.RegisterClustersInfoSource(ctx, ctrl.stateCache)
 	ctrl.RegisterClusterSecretUpdater(ctx)
@@ -892,6 +903,17 @@ func (ctrl *ApplicationController) Run(ctx context.Context, statusProcessors int
 		for ctrl.processProjectQueueItem() {
 		}
 	}, time.Second, ctx.Done())
+
+	go wait.Until(func() {
+		for ctrl.processAppHydrateQueueItem() {
+		}
+	}, time.Second, ctx.Done())
+
+	go wait.Until(func() {
+		for ctrl.processHydrationQueueItem() {
+		}
+	}, time.Second, ctx.Done())
+
 	<-ctx.Done()
 }
 
@@ -1533,6 +1555,12 @@ func (ctrl *ApplicationController) PatchAppWithWriteBack(ctx context.Context, na
 	return patchedApp, err
 }
 
+// processAppRefreshQueueItem does roughly these tasks:
+//  1. If we're shutting down, it quits early and returns "false" to indicate we're done processing refreshes.
+//  2. Checks whether the app needs to be refreshed. If not, quit early.
+//  3. If we're "comparing with nothing," just update the app resource tree in Redis and the app status in k8s.
+//  4. Checks that all AppProject restrictions are being followed. If not, clears the app resource tree and managed
+//     resources in Redis and sets failure conditions on the app status.
 func (ctrl *ApplicationController) processAppRefreshQueueItem() (processNext bool) {
 	patchMs := time.Duration(0) // time spent in doing patch/update calls
 	setOpMs := time.Duration(0) // time spent in doing Operation patch calls in autosync
@@ -1742,6 +1770,329 @@ func (ctrl *ApplicationController) processAppRefreshQueueItem() (processNext boo
 	return
 }
 
+func (ctrl *ApplicationController) processAppHydrateQueueItem() (processNext bool) {
+	appKey, shutdown := ctrl.appHydrateQueue.Get()
+	if shutdown {
+		processNext = false
+		return
+	}
+	processNext = true
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("Recovered from panic: %+v\n%s", r, debug.Stack())
+		}
+		ctrl.appHydrateQueue.Done(appKey)
+	}()
+	obj, exists, err := ctrl.appInformer.GetIndexer().GetByKey(appKey.(string))
+	if err != nil {
+		log.Errorf("Failed to get application '%s' from informer index: %+v", appKey, err)
+		return
+	}
+	if !exists {
+		// This happens after app was deleted, but the work queue still had an entry for it.
+		return
+	}
+	origApp, ok := obj.(*appv1.Application)
+	if !ok {
+		log.Warnf("Key '%s' in index is not an application", appKey)
+		return
+	}
+	origApp = origApp.DeepCopy()
+	app := origApp.DeepCopy()
+
+	if app.Spec.SourceHydrator == nil {
+		return
+	}
+
+	logCtx := getAppLog(app)
+
+	logCtx.Debug("Processing app hydrate queue item")
+
+	// If we're using a source hydrator, see if the dry source has changed.
+	latestRevision, err := ctrl.appStateManager.ResolveDryRevision(app.Spec.SourceHydrator.DrySource.RepoURL, app.Spec.SourceHydrator.DrySource.TargetRevision)
+	if err != nil {
+		logCtx.Errorf("Failed to check whether dry source has changed, skipping: %v", err)
+		return
+	}
+
+	// TODO: don't reuse statusRefreshTimeout. Create a new timeout for hydration.
+	reason := appNeedsHydration(origApp, ctrl.statusRefreshTimeout, latestRevision)
+	if reason == "" {
+		return
+	}
+	if latestRevision == "" {
+		logCtx.Errorf("Dry source has not been resolved, skipping")
+		return
+	}
+
+	logCtx.WithField("reason", reason).Info("Hydrating app")
+
+	app.Status.SourceHydrator.CurrentOperation = &appv1.HydrateOperation{
+		DrySHA:         latestRevision,
+		StartedAt:      metav1.Now(),
+		FinishedAt:     nil,
+		Phase:          appv1.HydrateOperationPhaseHydrating,
+		SourceHydrator: *app.Spec.SourceHydrator,
+	}
+	ctrl.persistAppStatus(origApp, &app.Status)
+	origApp.Status.SourceHydrator = app.Status.SourceHydrator
+	ctrl.hydrationQueue.Add(getHydrationQueueKey(app))
+
+	logCtx.Debug("Successfully processed app hydrate queue item")
+	return
+}
+
+func getHydrationQueueKey(app *appv1.Application) hydrationQueueKey {
+	destinationBranch := app.Spec.SourceHydrator.SyncSource.TargetBranch
+	if app.Spec.SourceHydrator.HydrateTo != nil {
+		destinationBranch = app.Spec.SourceHydrator.HydrateTo.TargetBranch
+	}
+	key := hydrationQueueKey{
+		sourceRepoURL:        app.Spec.SourceHydrator.DrySource.RepoURL,
+		sourceTargetRevision: app.Spec.SourceHydrator.DrySource.TargetRevision,
+		destinationBranch:    destinationBranch,
+	}
+	return key
+}
+
+type hydrationQueueKey struct {
+	sourceRepoURL        string
+	sourceTargetRevision string
+	destinationBranch    string
+}
+
+type uniqueHydrationDestination struct {
+	sourceRepoURL        string
+	sourceTargetRevision string
+	destinationBranch    string
+	destinationPath      string
+}
+
+func (ctrl *ApplicationController) processHydrationQueueItem() (processNext bool) {
+	key, shutdown := ctrl.hydrationQueue.Get()
+	if shutdown {
+		processNext = false
+		return
+	}
+	hydrationKey, ok := key.(hydrationQueueKey)
+	if !ok {
+		log.Errorf("Failed to cast key to hydrationQueueKey")
+		processNext = true
+		return
+	}
+	logCtx := log.WithFields(log.Fields{
+		"sourceRepoURL":        hydrationKey.sourceRepoURL,
+		"sourceTargetRevision": hydrationKey.sourceTargetRevision,
+		"destinationBranch":    hydrationKey.destinationBranch,
+	})
+	processNext = true
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("Recovered from panic: %+v\n%s", r, debug.Stack())
+		}
+		ctrl.hydrationQueue.Done(key)
+	}()
+
+	logCtx.Debug("Processing hydration queue item")
+	relevantApps, drySHA, hydratedSHA, err := ctrl.hydrateAppsLatestCommit(logCtx, hydrationKey)
+	if err != nil {
+		logCtx.WithField("appCount", len(relevantApps)).WithError(err).Error("Failed to hydrate apps")
+		for _, app := range relevantApps {
+			origApp := app.DeepCopy()
+			app.Status.SourceHydrator.CurrentOperation.Phase = appv1.HydrateOperationPhaseFailed
+			failedAt := metav1.Now()
+			app.Status.SourceHydrator.CurrentOperation.FinishedAt = &failedAt
+			app.Status.SourceHydrator.CurrentOperation.Message = fmt.Sprintf("Failed to hydrated revision %s: %v", drySHA, err.Error())
+			ctrl.persistAppStatus(origApp, &app.Status)
+			logCtx.Errorf("Failed to hydrate app: %v", err)
+		}
+		return
+	}
+	logCtx.WithField("appCount", len(relevantApps)).Debug("Successfully hydrated apps")
+	finishedAt := metav1.Now()
+	for _, app := range relevantApps {
+		origApp := app.DeepCopy()
+		operation := &appv1.HydrateOperation{
+			StartedAt:      app.Status.SourceHydrator.CurrentOperation.StartedAt,
+			FinishedAt:     &finishedAt,
+			Phase:          appv1.HydrateOperationPhaseHydrated,
+			Message:        "",
+			DrySHA:         drySHA,
+			HydratedSHA:    hydratedSHA,
+			SourceHydrator: app.Status.SourceHydrator.CurrentOperation.SourceHydrator,
+		}
+		app.Status.SourceHydrator.CurrentOperation = operation
+		app.Status.SourceHydrator.LastSuccessfulOperation = &appv1.SuccessfulHydrateOperation{
+			DrySHA:         drySHA,
+			HydratedSHA:    hydratedSHA,
+			SourceHydrator: app.Status.SourceHydrator.CurrentOperation.SourceHydrator,
+		}
+		ctrl.persistAppStatus(origApp, &app.Status)
+		// Request a refresh since we pushed a new commit.
+		ctrl.requestAppRefresh(app.QualifiedName(), CompareWithLatest.Pointer(), nil)
+	}
+	return
+}
+
+func (ctrl *ApplicationController) hydrateAppsLatestCommit(logCtx *log.Entry, hydrationKey hydrationQueueKey) ([]*appv1.Application, string, string, error) {
+	relevantApps, err := ctrl.getRelevantAppsForHydration(logCtx, hydrationKey)
+	if err != nil {
+		return nil, "", "", fmt.Errorf("failed to get relevant apps for hydration: %w", err)
+	}
+
+	dryRevision, err := ctrl.appStateManager.ResolveDryRevision(hydrationKey.sourceRepoURL, hydrationKey.sourceTargetRevision)
+	if err != nil {
+		return relevantApps, "", "", fmt.Errorf("failed to resolve dry revision: %w", err)
+	}
+
+	hydratedRevision, err := ctrl.hydrate(relevantApps, dryRevision)
+	if err != nil {
+		return relevantApps, dryRevision, "", fmt.Errorf("failed to hydrate apps: %w", err)
+	}
+
+	return relevantApps, dryRevision, hydratedRevision, nil
+}
+
+func (ctrl *ApplicationController) getRelevantAppsForHydration(logCtx *log.Entry, hydrationKey hydrationQueueKey) ([]*appv1.Application, error) {
+	// Get all apps
+	apps, err := ctrl.appLister.List(labels.Everything())
+	if err != nil {
+		return nil, fmt.Errorf("failed to list apps: %w", err)
+	}
+
+	var relevantApps []*appv1.Application
+	uniqueDestinations := make(map[uniqueHydrationDestination]bool, len(apps))
+	for _, app := range apps {
+		// TODO: test that we're actually skipping un-processable apps.
+		if !ctrl.canProcessApp(app) {
+			continue
+		}
+		if app.Spec.SourceHydrator == nil {
+			continue
+		}
+
+		if app.Spec.SourceHydrator.DrySource.RepoURL != hydrationKey.sourceRepoURL ||
+			app.Spec.SourceHydrator.DrySource.TargetRevision != hydrationKey.sourceTargetRevision {
+			continue
+		}
+		destinationBranch := app.Spec.SourceHydrator.SyncSource.TargetBranch
+		if app.Spec.SourceHydrator.HydrateTo != nil {
+			destinationBranch = app.Spec.SourceHydrator.HydrateTo.TargetBranch
+		}
+		if destinationBranch != hydrationKey.destinationBranch {
+			continue
+		}
+
+		var proj *appv1.AppProject
+		proj, err = ctrl.getAppProj(app)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get project %q for app %q: %w", app.Spec.Project, app.QualifiedName(), err)
+		}
+		permitted := proj.IsSourcePermitted(app.Spec.GetSource())
+		if !permitted {
+			// Log and skip. We don't want to fail the entire operation because of one app.
+			logCtx.Warnf("App %q is not permitted to use source %q", app.QualifiedName(), app.Spec.Source.String())
+			continue
+		}
+
+		uniqueDestinationKey := uniqueHydrationDestination{
+			sourceRepoURL:        app.Spec.SourceHydrator.DrySource.RepoURL,
+			sourceTargetRevision: app.Spec.SourceHydrator.DrySource.TargetRevision,
+			destinationBranch:    destinationBranch,
+			destinationPath:      app.Spec.SourceHydrator.SyncSource.Path,
+		}
+		// TODO: test the dupe detection
+		if _, ok := uniqueDestinations[uniqueDestinationKey]; ok {
+			return nil, fmt.Errorf("multiple app hydrators use the same destination: %v", uniqueDestinationKey)
+		}
+		uniqueDestinations[uniqueDestinationKey] = true
+
+		relevantApps = append(relevantApps, app)
+	}
+	return relevantApps, nil
+}
+
+func (ctrl *ApplicationController) hydrate(apps []*appv1.Application, revision string) (string, error) {
+	if len(apps) == 0 {
+		return "", nil
+	}
+	repoURL := apps[0].Spec.SourceHydrator.DrySource.RepoURL
+	syncBranch := apps[0].Spec.SourceHydrator.SyncSource.TargetBranch
+	targetBranch := apps[0].Spec.GetHydrateToSource().TargetRevision
+	var paths []*commitclient.PathDetails
+	for _, app := range apps {
+		project, err := ctrl.getAppProj(app)
+		if err != nil {
+			return "", fmt.Errorf("failed to get project: %w", err)
+		}
+		drySource := appv1.ApplicationSource{
+			RepoURL:        app.Spec.SourceHydrator.DrySource.RepoURL,
+			Path:           app.Spec.SourceHydrator.DrySource.Path,
+			TargetRevision: app.Spec.SourceHydrator.DrySource.TargetRevision,
+		}
+		drySources := []appv1.ApplicationSource{drySource}
+		revisions := []string{app.Spec.SourceHydrator.DrySource.TargetRevision}
+
+		appLabelKey, err := ctrl.settingsMgr.GetAppInstanceLabelKey()
+		if err != nil {
+			return "", fmt.Errorf("failed to get app instance label key: %w", err)
+		}
+
+		// TODO: enable signature verification
+		objs, resp, err := ctrl.appStateManager.GetRepoObjs(app, drySources, appLabelKey, revisions, false, false, false, project, false, false)
+		if err != nil {
+			return "", fmt.Errorf("failed to get repo objects: %w", err)
+		}
+
+		// Set up a ManifestsRequest
+		manifestDetails := make([]*commitclient.HydratedManifestDetails, len(objs))
+		for i, obj := range objs {
+			objJson, err := json.Marshal(obj)
+			if err != nil {
+				return "", fmt.Errorf("failed to marshal object: %w", err)
+			}
+			manifestDetails[i] = &commitclient.HydratedManifestDetails{ManifestJSON: string(objJson)}
+		}
+
+		paths = append(paths, &commitclient.PathDetails{
+			Path:      app.Spec.SourceHydrator.SyncSource.Path,
+			Manifests: manifestDetails,
+			Commands:  resp[0].Commands,
+		})
+	}
+
+	repo, err := ctrl.db.GetHydratorCredentials(context.Background(), repoURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to get hydrator credentials: %w", err)
+	}
+	if repo == nil {
+		// Try without credentials.
+		repo = &appv1.Repository{
+			Repo: repoURL,
+		}
+	}
+
+	manifestsRequest := commitclient.CommitHydratedManifestsRequest{
+		Repo:          repo,
+		SyncBranch:    syncBranch,
+		TargetBranch:  targetBranch,
+		DrySha:        revision,
+		CommitMessage: fmt.Sprintf("[Argo CD Bot] hydrate %s", revision),
+		Paths:         paths,
+	}
+
+	closer, commitService, err := ctrl.commitClientset.NewCommitServerClient()
+	if err != nil {
+		return "", fmt.Errorf("failed to create commit service: %w", err)
+	}
+	defer closer.Close()
+	resp, err := commitService.CommitHydratedManifests(context.Background(), &manifestsRequest)
+	if err != nil {
+		return "", fmt.Errorf("failed to commit hydrated manifests: %w", err)
+	}
+	return resp.HydratedSha, nil
+}
+
 func resourceStatusKey(res appv1.ResourceStatus) string {
 	return strings.Join([]string{res.Group, res.Kind, res.Namespace, res.Name}, "/")
 }
@@ -1810,6 +2161,36 @@ func (ctrl *ApplicationController) needRefreshAppStatus(app *appv1.Application, 
 	return false, refreshType, compareWith
 }
 
+// appNeedsHydration answers if application needs manifests hydrated.
+func appNeedsHydration(app *appv1.Application, statusHydrateTimeout time.Duration, latestRevision string) string {
+	if app.Spec.SourceHydrator == nil {
+		return ""
+	}
+
+	var hydratedAt *metav1.Time
+	if app.Status.SourceHydrator.CurrentOperation != nil {
+		hydratedAt = &app.Status.SourceHydrator.CurrentOperation.StartedAt
+	}
+
+	if app.IsHydrateRequested() {
+		return "hydrate requested"
+	} else if app.Status.SourceHydrator.CurrentOperation == nil {
+		return "no previous hydrate operation"
+	} else if !app.Spec.SourceHydrator.DeepEquals(app.Status.SourceHydrator.CurrentOperation.SourceHydrator) {
+		return "spec.sourceHydrator differs"
+	} else if app.Status.SourceHydrator.CurrentOperation.DrySHA != latestRevision {
+		return "revision differs"
+	} else if app.Status.SourceHydrator.CurrentOperation.Phase == appv1.HydrateOperationPhaseFailed && metav1.Now().Sub(app.Status.SourceHydrator.CurrentOperation.FinishedAt.Time) > 2*time.Minute {
+		return "previous hydrate operation failed more than 2 minutes ago"
+	} else if hydratedAt == nil || hydratedAt.Add(statusHydrateTimeout).Before(time.Now().UTC()) {
+		return "hydration expired"
+	}
+
+	return ""
+}
+
+// refreshAppConditions validates whether AppProject restrictions are being followed. If not, it adds error conditions
+// to the app status.
 func (ctrl *ApplicationController) refreshAppConditions(app *appv1.Application) (*appv1.AppProject, bool) {
 	errorConditions := make([]appv1.ApplicationCondition, 0)
 	proj, err := ctrl.getAppProj(app)
@@ -2091,7 +2472,7 @@ func alreadyAttemptedSync(app *appv1.Application, commitSHA string, commitSHAsMS
 	} else {
 		// Ignore differences in target revision, since we already just verified commitSHAs are equal,
 		// and we do not want to trigger auto-sync due to things like HEAD != master
-		specSource := app.Spec.Source.DeepCopy()
+		specSource := app.Spec.GetSource()
 		specSource.TargetRevision = ""
 		syncResSource := app.Status.OperationState.SyncResult.Source.DeepCopy()
 		syncResSource.TargetRevision = ""
@@ -2282,6 +2663,7 @@ func (ctrl *ApplicationController) newApplicationInformerAndLister() (cache.Shar
 				if !newOK || (delay != nil && *delay != time.Duration(0)) {
 					ctrl.appOperationQueue.AddRateLimited(key)
 				}
+				ctrl.appHydrateQueue.AddRateLimited(newApp.QualifiedName())
 				ctrl.clusterSharding.UpdateApp(newApp)
 			},
 			DeleteFunc: func(obj interface{}) {
