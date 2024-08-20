@@ -209,7 +209,7 @@ func (g *PullRequestGenerator) selectServiceProvider(ctx context.Context, genera
 		providerConfig := generatorConfig.ScmManager
 		token, err := utils.GetSecretRef(ctx, g.client, providerConfig.TokenRef, applicationSetInfo.Namespace)
 		if err != nil {
-			return nil, fmt.Errorf("error fetching Secret token: %v", err)
+			return nil, fmt.Errorf("error fetching Secret token: %w", err)
 		}
 
 		var caCerts []byte

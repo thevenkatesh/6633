@@ -140,9 +140,9 @@ func TestScmManagerListRepos(t *testing.T) {
 			provider, _ := NewScmManagerProvider(context.Background(), "", ts.URL, c.allBranches, false, "", nil)
 			rawRepos, err := ListRepos(context.Background(), provider, c.filters, c.proto)
 			if c.hasError {
-				assert.NotNil(t, err)
+				assert.Error(t, err)
 			} else {
-				assert.Nil(t, err)
+				assert.NoError(t, err)
 				repos := []*Repository{}
 				branches := []string{}
 				for _, r := range rawRepos {
@@ -175,19 +175,19 @@ func TestScmManagerHasPath(t *testing.T) {
 
 	t.Run("file exists", func(t *testing.T) {
 		ok, err := host.RepoHasPath(context.Background(), repo, "README.md")
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("directory exists", func(t *testing.T) {
 		ok, err := host.RepoHasPath(context.Background(), repo, "build")
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("does not exists", func(t *testing.T) {
 		ok, err := host.RepoHasPath(context.Background(), repo, "unknownFile")
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
 }
