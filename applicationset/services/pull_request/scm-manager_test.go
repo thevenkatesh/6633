@@ -3,12 +3,13 @@ package pull_request
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func scmmMockHandler(t *testing.T) func(http.ResponseWriter, *http.Request) {

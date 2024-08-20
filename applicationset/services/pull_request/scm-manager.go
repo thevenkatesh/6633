@@ -2,10 +2,11 @@ package pull_request
 
 import (
 	"context"
-	"github.com/argoproj/argo-cd/v2/applicationset/utils"
 	"net/http"
 	"os"
 	"strconv"
+
+	"github.com/argoproj/argo-cd/v2/applicationset/utils"
 
 	scmm "github.com/scm-manager/goscm"
 )

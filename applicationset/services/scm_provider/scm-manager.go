@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/argoproj/argo-cd/v2/applicationset/utils"
 	"net/http"
 	"os"
+
+	"github.com/argoproj/argo-cd/v2/applicationset/utils"
 
 	scmm "github.com/scm-manager/goscm"
 )
@@ -28,7 +29,6 @@ func NewScmManagerProvider(ctx context.Context, token, url string, allBranches, 
 	httpClient.Transport = tr
 
 	client, err := scmm.NewClient(url, token)
-
 	if err != nil {
 		return nil, fmt.Errorf("error creating a new SCM-Manager client: %w", err)
 	}

@@ -2,14 +2,16 @@ package scm_provider
 
 import (
 	"context"
-	"github.com/argoproj/argo-cd/v2/applicationset/services/scm_provider/testdata"
-	"github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/argoproj/argo-cd/v2/applicationset/services/scm_provider/testdata"
+	"github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
 )
 
 func scmManagerMockHandler(t *testing.T) func(http.ResponseWriter, *http.Request) {
@@ -93,6 +95,7 @@ func scmManagerMockHandler(t *testing.T) func(http.ResponseWriter, *http.Request
 		}
 	}
 }
+
 func TestScmManagerListRepos(t *testing.T) {
 	cases := []struct {
 		name, proto, url                        string
