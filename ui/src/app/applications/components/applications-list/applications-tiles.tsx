@@ -198,6 +198,13 @@ export const ApplicationTiles = ({applications, syncApplication, refreshApplicat
                                                         <div className='columns small-9' qe-id='applications-tiles-health-status'>
                                                             <AppUtils.HealthStatusIcon state={app.status.health} /> {app.status.health.status}
                                                             &nbsp;
+                                                            {app.spec.sourceHydrator && app.status?.sourceHydrator?.currentOperation && (
+                                                                <>
+                                                                    <AppUtils.HydrateOperationPhaseIcon operationState={app.status.sourceHydrator.currentOperation} />
+                                                                    {app.status.sourceHydrator.currentOperation.phase || 'Unknown'}
+                                                                    &nbsp;
+                                                                </>
+                                                            )}
                                                             <AppUtils.ComparisonStatusIcon status={app.status.sync.status} /> {app.status.sync.status}
                                                             &nbsp;
                                                             <OperationState app={app} quiet={true} />

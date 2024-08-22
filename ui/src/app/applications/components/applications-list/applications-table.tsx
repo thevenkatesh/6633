@@ -131,6 +131,12 @@ export const ApplicationsTable = (props: {
 
                                             <div className='columns small-2'>
                                                 <AppUtils.HealthStatusIcon state={app.status.health} /> <span>{app.status.health.status}</span> <br />
+                                                {app.spec.sourceHydrator && app.status?.sourceHydrator?.currentOperation && (
+                                                    <>
+                                                        <AppUtils.HydrateOperationPhaseIcon operationState={app.status.sourceHydrator.currentOperation} />
+                                                        <span>{app.status.sourceHydrator.currentOperation.phase || 'Unknown'}</span> <br />
+                                                    </>
+                                                )}
                                                 <AppUtils.ComparisonStatusIcon status={app.status.sync.status} />
                                                 <span>{app.status.sync.status}</span> <OperationState app={app} quiet={true} />
                                                 <DropDownMenu
