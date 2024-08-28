@@ -6,6 +6,15 @@ import (
 	"os"
 	"strings"
 
+	"github.com/argoproj/argo-cd/v2/common"
+	appclientset "github.com/argoproj/argo-cd/v2/pkg/client/clientset/versioned"
+	appclient "github.com/argoproj/argo-cd/v2/pkg/client/clientset/versioned/typed/application/v1alpha1"
+	"github.com/argoproj/argo-cd/v2/server/rbacpolicy"
+	"github.com/argoproj/argo-cd/v2/util/assets"
+	"github.com/argoproj/argo-cd/v2/util/cli"
+	"github.com/argoproj/argo-cd/v2/util/errors"
+	"github.com/argoproj/argo-cd/v2/util/glob"
+	"github.com/argoproj/argo-cd/v2/util/rbac"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
@@ -13,12 +22,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/yaml"
-
-	"github.com/argoproj/argo-cd/v2/common"
-	"github.com/argoproj/argo-cd/v2/server/rbacpolicy"
-	"github.com/argoproj/argo-cd/v2/util/assets"
-	"github.com/argoproj/argo-cd/v2/util/cli"
-	"github.com/argoproj/argo-cd/v2/util/rbac"
 )
 
 type actionTraitMap map[string]rbacTrait
@@ -130,6 +133,7 @@ func NewRBACCanCommand() *cobra.Command {
 		useBuiltin   bool
 		strict       bool
 		quiet        bool
+		project      string
 		subject      string
 		action       string
 		resource     string
@@ -152,9 +156,10 @@ argocd admin settings rbac can some:role create application 'default/app' --poli
 # i.e. 'policy.csv' and (optionally) 'policy.default'
 argocd admin settings rbac can some:role create application 'default/app' --policy-file argocd-rbac-cm.yaml
 
-# If --policy-file is not given, the ConfigMap 'argocd-rbac-cm' from K8s is
-# used. You need to specify the argocd namespace, and make sure that your
-# current Kubernetes context is pointing to the cluster Argo CD is running in
+# If --policy-file is not given, the ConfigMap 'argocd-rbac-cm' and
+# applicable AppProject roles from K8s are used. You need to specify
+# the argocd namespace, and make sure that your current Kubernetes context
+# is pointing to the cluster Argo CD is running in
 argocd admin settings rbac can some:role create application 'default/app' --namespace argocd
 
 # You can override a possibly configured default role
@@ -170,13 +175,24 @@ argocd admin settings rbac can someuser create application 'default/app' --defau
 			}
 			subject = args[0]
 			action = args[1]
-			resource = args[2]
+			// User could have used a mutation of the resource name (i.e. 'cert' for
+			// 'certificate') - let's resolve it to the valid resource.
+			resource = resolveRBACResourceName(args[2])
 			if len(args) > 3 {
 				subResource = args[3]
+				// Application resources have a special notation - for simplicity's sake,
+				// if user gives no sub-resource (or specifies simple '*'), we construct
+				// the required notation by setting subresource to '*/*'.
+				if resource == rbacpolicy.ResourceApplications {
+					if subResource == "*" || subResource == "" {
+						subResource = "*/*"
+					}
+				}
 			}
 
 			userPolicy := ""
 			builtinPolicy := ""
+			projectPolicies := ""
 
 			var newDefaultRole string
 
@@ -200,6 +216,8 @@ argocd admin settings rbac can someuser create application 'default/app' --defau
 				log.Fatalf("could not create k8s client: %v", err)
 			}
 
+			appclients := appclientset.NewForConfigOrDie(restConfig)
+
 			userPolicy, newDefaultRole, matchMode := getPolicy(ctx, policyFile, realClientset, namespace)
 
 			// Use built-in policy as augmentation if requested
@@ -213,7 +231,21 @@ argocd admin settings rbac can someuser create application 'default/app' --defau
 				defaultRole = newDefaultRole
 			}
 
-			res := checkPolicy(subject, action, resource, subResource, builtinPolicy, userPolicy, defaultRole, matchMode, strict)
+			if nsOverride && policyFile == "" {
+				projIf := appclients.ArgoprojV1alpha1().AppProjects(namespace)
+				if resource == rbacpolicy.ResourceProjects {
+					if subResource == "" {
+						project = "*"
+					} else {
+						project = subResource
+					}
+				} else if subResource != "" && strings.Contains(subResource, "/") {
+					project = strings.Split(subResource, "/")[0]
+				}
+				projectPolicies = getProjectPolicies(ctx, projIf, project)
+			}
+
+			res := checkPolicy(project, subject, action, resource, subResource, builtinPolicy, userPolicy, projectPolicies, defaultRole, matchMode, strict)
 			if res {
 				if !quiet {
 					fmt.Println("Yes")
@@ -380,9 +412,36 @@ func getPolicyConfigMap(ctx context.Context, client kubernetes.Interface, namesp
 	return cm, nil
 }
 
+// getProjectPolicies fetches the RBAC AppProject Roles from K8s cluster for the project
+func getProjectPolicies(ctx context.Context, projIf appclient.AppProjectInterface, project string) (projectPolicies string) {
+	var projectPoliciesBuilder strings.Builder
+
+	if project != "" {
+		if strings.Contains(project, "*") {
+			projs, err := projIf.List(ctx, v1.ListOptions{})
+			errors.CheckError(err)
+			for _, proj := range projs.Items {
+				if glob.Match(project, proj.Name) {
+					projectPoliciesBuilder.WriteString(proj.ProjectPoliciesString())
+					projectPoliciesBuilder.WriteString("\n")
+				}
+			}
+		} else {
+			proj, err := projIf.Get(ctx, project, v1.GetOptions{})
+			errors.CheckError(err)
+			projectPoliciesBuilder.WriteString(proj.ProjectPoliciesString())
+			projectPoliciesBuilder.WriteString("\n")
+		}
+	}
+
+	projectPolicies = projectPoliciesBuilder.String()
+
+	return projectPolicies
+}
+
 // checkPolicy checks whether given subject is allowed to execute specified
 // action against specified resource
-func checkPolicy(subject, action, resource, subResource, builtinPolicy, userPolicy, defaultRole, matchMode string, strict bool) bool {
+func checkPolicy(project, subject, action, resource, subResource, builtinPolicy, userPolicy, projectPolicies, defaultRole, matchMode string, strict bool) bool {
 	enf := rbac.NewEnforcer(nil, "argocd", "argocd-rbac-cm", nil)
 	enf.SetDefaultRole(defaultRole)
 	enf.SetMatchMode(matchMode)
@@ -402,30 +461,27 @@ func checkPolicy(subject, action, resource, subResource, builtinPolicy, userPoli
 			return false
 		}
 	}
-
-	// User could have used a mutation of the resource name (i.e. 'cert' for
-	// 'certificate') - let's resolve it to the valid resource.
-	realResource := resolveRBACResourceName(resource)
+	if project != "" && projectPolicies != "" {
+		if err := rbac.ValidatePolicy(projectPolicies); err != nil {
+			log.Fatalf("invalid project policy: %v", err)
+			return false
+		}
+	}
 
 	// If in strict mode, validate that given RBAC resource and action are
 	// actually valid tokens.
 	if strict {
-		if err := validateRBACResourceAction(realResource, action); err != nil {
+		if err := validateRBACResourceAction(resource, action); err != nil {
 			log.Fatalf("error in RBAC request: %v", err)
 			return false
 		}
 	}
 
-	// Application resources have a special notation - for simplicity's sake,
-	// if user gives no sub-resource (or specifies simple '*'), we construct
-	// the required notation by setting subresource to '*/*'.
-	if realResource == rbacpolicy.ResourceApplications {
-		if subResource == "*" || subResource == "" {
-			subResource = "*/*"
-		}
+	if project != "" && projectPolicies != "" {
+		return enf.EnforceRuntimePolicy(project, projectPolicies, subject, resource, action, subResource)
+	} else {
+		return enf.Enforce(subject, resource, action, subResource)
 	}
-
-	return enf.Enforce(subject, realResource, action, subResource)
 }
 
 // resolveRBACResourceName resolves a user supplied value to a valid RBAC
