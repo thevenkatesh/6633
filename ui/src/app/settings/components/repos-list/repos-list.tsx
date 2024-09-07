@@ -103,12 +103,6 @@ interface NewGoogleCloudSourceRepoCredsParams {
     gcpServiceAccountKey: string;
 }
 
-interface ColumnHeaderProps {
-    label: string;
-    property?: string;
-    className?: string;
-}
-
 export enum ConnectionMethod {
     SSH = 'via SSH',
     HTTPS = 'via HTTPS',
@@ -123,8 +117,10 @@ export class ReposList extends React.Component<
         method: string;
         currentRepo: models.Repository;
         displayEditPanel: boolean;
-        sortProperty: keyof models.Repository | null;
-        sortOrder: 'asc' | 'desc';
+        sortProperty: 'asc' | 'desc';
+        statusProperty: 'all' | 'Successful' | 'Failed' | 'Unknown';
+        projectProperty: string;
+        typeProperty: 'all' | 'git' | 'helm';
     }
 > {
     public static contextTypes = {
@@ -145,8 +141,10 @@ export class ReposList extends React.Component<
             method: ConnectionMethod.SSH,
             currentRepo: null,
             displayEditPanel: false,
-            sortProperty: null,
-            sortOrder: 'asc'
+            sortProperty: 'asc',
+            statusProperty: 'all',
+            projectProperty: 'all',
+            typeProperty: 'all'
         };
     }
 
@@ -270,32 +268,6 @@ export class ReposList extends React.Component<
     }
 
     public render() {
-        const compareReposAsc = (a: models.Repository, b: models.Repository) => {
-            const x = a[this.state.sortProperty] === undefined ? '' : a[this.state.sortProperty].toString();
-            const y = b[this.state.sortProperty] === undefined ? '' : b[this.state.sortProperty].toString();
-            return x.localeCompare(y);
-        };
-
-        const compareReposDesc = (a: models.Repository, b: models.Repository) => {
-            return compareReposAsc(b, a);
-        };
-
-        const ColumnHeader = (props: ColumnHeaderProps) => {
-            const onClick = () => {
-                if (this.state.sortProperty === props.property) {
-                    this.setState({sortOrder: this.state.sortOrder === 'asc' ? 'desc' : 'asc'});
-                } else {
-                    this.setState({sortProperty: props.property as keyof models.Repository, sortOrder: 'asc'});
-                }
-            };
-
-            return (
-                <div className={props.className} onClick={onClick}>
-                    {props.label}
-                </div>
-            );
-        };
-
         return (
             <Page
                 title='Repositories'
@@ -320,30 +292,103 @@ export class ReposList extends React.Component<
                 }}>
                 <div className='repos-list'>
                     <div className='argo-container'>
-                        <DataLoader load={() => services.repos.list()} ref={loader => (this.repoLoader = loader)}>
+                        <div>
+                            <div>
+                                <DropDownMenu
+                                    items={[
+                                        {
+                                            title: 'all',
+                                            action: () => this.setState({typeProperty: 'all'})
+                                        },
+                                        {
+                                            title: 'git',
+                                            action: () => this.setState({typeProperty: 'git'})
+                                        },
+                                        {
+                                            title: 'helm',
+                                            action: () => this.setState({typeProperty: 'helm'})
+                                        }
+                                    ]}
+                                    anchor={() => <button className='argo-button argo-button--base'>TYPE</button>}
+                                    qeId='type-menu'
+                                />
+                                <DropDownMenu
+                                    items={[
+                                        {
+                                            title: 'all',
+                                            action: () => this.setState({projectProperty: 'all'})
+                                        }
+                                    ]}
+                                    anchor={() => <button className='argo-button argo-button--base'>PROJECT</button>}
+                                    qeId='project-menu'
+                                />
+                                <DropDownMenu
+                                    items={[
+                                        {
+                                            title: 'all',
+                                            action: () => this.setState({statusProperty: 'all'})
+                                        },
+                                        {
+                                            title: 'Successful',
+                                            action: () => this.setState({statusProperty: 'Successful'})
+                                        },
+                                        {
+                                            title: 'Failed',
+                                            action: () => this.setState({statusProperty: 'Failed'})
+                                        },
+                                        {
+                                            title: 'Unknown',
+                                            action: () => this.setState({statusProperty: 'Unknown'})
+                                        }
+                                    ]}
+                                    anchor={() => <button className='argo-button argo-button--base'>STATUS</button>}
+                                    qeId='status-menu'
+                                />
+                                <DropDownMenu
+                                    items={[
+                                        {
+                                            title: 'asc',
+                                            action: () => this.setState({sortProperty: 'asc'})
+                                        },
+                                        {
+                                            title: 'desc',
+                                            action: () => this.setState({sortProperty: 'desc'})
+                                        }
+                                    ]}
+                                    anchor={() => <button className='argo-button argo-button--base'>SORT</button>}
+                                    qeId='sort-menu'
+                                />
+                            </div>
+                            <div className='search-bar'></div>
+                            <input type='text' className='argo-field' placeholder='Search...' />
+                        </div>
+                        <DataLoader load={services.repos.list} ref={loader => (this.repoLoader = loader)}>
                             {(repos: models.Repository[]) => {
-                                if (this.state.sortProperty) {
-                                    if (this.state.sortOrder === 'asc') {
-                                        repos.sort(compareReposAsc);
-                                    } else {
-                                        repos.sort(compareReposDesc);
-                                    }
-                                }
+                                const projectValues = Array.from(new Set(repos.map(repo => repo.project)));
+                                console.log('projects : ', projectValues);
+
+                                const filteredRepos = this.filteredRepos(
+                                    repos,
+                                    this.state.typeProperty,
+                                    this.state.projectProperty,
+                                    this.state.statusProperty,
+                                    this.state.sortProperty
+                                );
 
                                 return (
-                                    (repos.length > 0 && (
+                                    (filteredRepos.length > 0 && (
                                         <div className='argo-table-list'>
                                             <div className='argo-table-list__head'>
                                                 <div className='row'>
                                                     <div className='columns small-1' />
-                                                    <ColumnHeader className='columns small-1' label='TYPE' property='type' />
-                                                    <ColumnHeader className='columns small-2' label='NAME' property='name' />
-                                                    <ColumnHeader className='columns small-2' label='PROJECT' property='project' />
-                                                    <ColumnHeader className='columns small-4' label='REPOSITORY' property='repo' />
+                                                    <div className='columns small-1'>TYPE</div>
+                                                    <div className='columns small-2'>NAME</div>
+                                                    <div className='columns small-2'>PROJECT</div>
+                                                    <div className='columns small-4'>REPOSITORY</div>
                                                     <div className='columns small-2'>CONNECTION STATUS</div>
                                                 </div>
                                             </div>
-                                            {repos.map(repo => (
+                                            {filteredRepos.map(repo => (
                                                 <div
                                                     className={`argo-table-list__row ${this.isRepoUpdatable(repo) ? 'item-clickable' : ''}`}
                                                     key={repo.repo}
@@ -950,6 +995,47 @@ export class ReposList extends React.Component<
                 });
             }
         }
+    }
+
+    // filtering function
+    private filteredRepos(repos: models.Repository[], type: string, project: string, status: string, sort: string) {
+        let newRepos = repos;
+
+        if (type !== 'all') {
+            const response = this.filteredType(newRepos, type);
+            newRepos = response;
+        }
+
+        if (status !== 'all') {
+            const response = this.filteredStatus(newRepos, status);
+            newRepos = response;
+        }
+
+        if (project !== 'all') {
+            const response = this.filteredProject(newRepos, project);
+            newRepos = response;
+        }
+
+        return newRepos;
+    }
+
+    private filteredSort(repos: models.Repository[]) {
+        // ??
+    }
+
+    private filteredStatus(repos: models.Repository[], status: string) {
+        const newRepos = repos.filter(repo => repo.connectionState.status.includes(status));
+        return newRepos;
+    }
+
+    private filteredProject(repos: models.Repository[], project: string) {
+        const newRepos = repos.filter(repo => repo.project.includes(project));
+        return newRepos;
+    }
+
+    private filteredType(repos: models.Repository[], type: string) {
+        const newRepos = repos.filter(repo => repo.type.includes(type));
+        return newRepos;
     }
 
     // Whether to show the new repository connection dialogue on the page
