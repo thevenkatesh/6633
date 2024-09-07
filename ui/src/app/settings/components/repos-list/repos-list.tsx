@@ -121,6 +121,7 @@ export class ReposList extends React.Component<
         statusProperty: 'all' | 'Successful' | 'Failed' | 'Unknown';
         projectProperty: string;
         typeProperty: 'all' | 'git' | 'helm';
+        name: string;
     }
 > {
     public static contextTypes = {
@@ -144,7 +145,8 @@ export class ReposList extends React.Component<
             sortProperty: 'asc',
             statusProperty: 'all',
             projectProperty: 'all',
-            typeProperty: 'all'
+            typeProperty: 'all',
+            name: ''
         };
     }
 
@@ -292,8 +294,8 @@ export class ReposList extends React.Component<
                 }}>
                 <div className='repos-list'>
                     <div className='argo-container'>
-                        <div>
-                            <div>
+                        <div style={{display: 'flex', margin: '20px 0', justifyContent: 'space-between'}}>
+                            <div style={{display: 'flex', gap: '8px'}}>
                                 <DropDownMenu
                                     items={[
                                         {
@@ -312,16 +314,30 @@ export class ReposList extends React.Component<
                                     anchor={() => <button className='argo-button argo-button--base'>TYPE</button>}
                                     qeId='type-menu'
                                 />
-                                <DropDownMenu
-                                    items={[
-                                        {
-                                            title: 'all',
-                                            action: () => this.setState({projectProperty: 'all'})
-                                        }
-                                    ]}
-                                    anchor={() => <button className='argo-button argo-button--base'>PROJECT</button>}
-                                    qeId='project-menu'
-                                />
+                                <DataLoader load={services.repos.list} ref={loader => (this.repoLoader = loader)}>
+                                    {(repos: models.Repository[]) => {
+                                        const projectValues = Array.from(new Set(repos.map(repo => repo.project)));
+
+                                        const projectItems = [
+                                            {
+                                                title: 'all',
+                                                action: () => this.setState({projectProperty: 'all'})
+                                            },
+                                            ...projectValues.map(project => ({
+                                                title: project,
+                                                action: () => this.setState({projectProperty: project})
+                                            }))
+                                        ];
+
+                                        return (
+                                            <DropDownMenu
+                                                items={projectItems}
+                                                anchor={() => <button className='argo-button argo-button--base'>PROJECT</button>}
+                                                qeId='project-menu'
+                                            />
+                                        );
+                                    }}
+                                </DataLoader>
                                 <DropDownMenu
                                     items={[
                                         {
@@ -359,20 +375,18 @@ export class ReposList extends React.Component<
                                     qeId='sort-menu'
                                 />
                             </div>
-                            <div className='search-bar'></div>
-                            <input type='text' className='argo-field' placeholder='Search...' />
+                            <div className='search-bar' style={{display: 'flex', alignItems: 'flex-end', width: '100%'}}></div>
+                            <input type='text' className='argo-field' placeholder='Search Name' value={this.state.name} onChange={e => this.setState({name: e.target.value})} />
                         </div>
                         <DataLoader load={services.repos.list} ref={loader => (this.repoLoader = loader)}>
                             {(repos: models.Repository[]) => {
-                                const projectValues = Array.from(new Set(repos.map(repo => repo.project)));
-                                console.log('projects : ', projectValues);
-
                                 const filteredRepos = this.filteredRepos(
                                     repos,
                                     this.state.typeProperty,
                                     this.state.projectProperty,
                                     this.state.statusProperty,
-                                    this.state.sortProperty
+                                    this.state.sortProperty,
+                                    this.state.name
                                 );
 
                                 return (
@@ -998,8 +1012,13 @@ export class ReposList extends React.Component<
     }
 
     // filtering function
-    private filteredRepos(repos: models.Repository[], type: string, project: string, status: string, sort: string) {
+    private filteredRepos(repos: models.Repository[], type: string, project: string, status: string, sort: string, name: string) {
         let newRepos = repos;
+
+        if (name !== '' || name !== null) {
+            const response = this.filteredName(newRepos, name);
+            newRepos = response;
+        }
 
         if (type !== 'all') {
             const response = this.filteredType(newRepos, type);
@@ -1021,6 +1040,12 @@ export class ReposList extends React.Component<
 
     private filteredSort(repos: models.Repository[]) {
         // ??
+    }
+
+    private filteredName(repos: models.Repository[], name: string) {
+        const trimmedName = name.trim();
+        const newRepos = repos.filter(repo => repo.name.toLowerCase().includes(trimmedName.toLowerCase()));
+        return newRepos;
     }
 
     private filteredStatus(repos: models.Repository[], status: string) {
