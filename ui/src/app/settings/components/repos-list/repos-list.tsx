@@ -360,20 +360,6 @@ export class ReposList extends React.Component<
                                     anchor={() => <button className='argo-button argo-button--base'>STATUS</button>}
                                     qeId='status-menu'
                                 />
-                                <DropDownMenu
-                                    items={[
-                                        {
-                                            title: 'asc',
-                                            action: () => this.setState({sortProperty: 'asc'})
-                                        },
-                                        {
-                                            title: 'desc',
-                                            action: () => this.setState({sortProperty: 'desc'})
-                                        }
-                                    ]}
-                                    anchor={() => <button className='argo-button argo-button--base'>SORT</button>}
-                                    qeId='sort-menu'
-                                />
                             </div>
                             <div className='search-bar' style={{display: 'flex', alignItems: 'flex-end', width: '100%'}}></div>
                             <input type='text' className='argo-field' placeholder='Search Name' value={this.state.name} onChange={e => this.setState({name: e.target.value})} />
@@ -1036,10 +1022,6 @@ export class ReposList extends React.Component<
         }
 
         return newRepos;
-    }
-
-    private filteredSort(repos: models.Repository[]) {
-        // ??
     }
 
     private filteredName(repos: models.Repository[], name: string) {
