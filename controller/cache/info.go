@@ -310,7 +310,9 @@ func populatePodInfo(un *unstructured.Unstructured, res *ResourceInfo) {
 	for i := range pod.Status.InitContainerStatuses {
 		container := pod.Status.InitContainerStatuses[i]
 		restarts += int(container.RestartCount)
+		containerSpec := pod.Spec.InitContainers[i]
 		switch {
+		case container.State.Terminated == nil && *containerSpec.RestartPolicy == v1.ContainerRestartPolicyAlways:
 		case container.State.Terminated != nil && container.State.Terminated.ExitCode == 0:
 			continue
 		case container.State.Terminated != nil:
