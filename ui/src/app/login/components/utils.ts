@@ -13,6 +13,7 @@ import {
     validateAuthResponse
 } from 'oauth4webapi';
 import {AuthSettings} from '../../shared/models';
+import requests from '../../shared/services/requests';
 
 export const discoverAuthServer = (issuerURL: URL): Promise<AuthorizationServer> => discoveryRequest(issuerURL).then(res => processDiscoveryResponse(issuerURL, res));
 
@@ -29,9 +30,7 @@ export const PKCEState = {
 };
 
 export const getPKCERedirectURI = () => {
-    const currentOrigin = new URL(window.location.origin);
-
-    currentOrigin.pathname = '/pkce/verify';
+    const currentOrigin = new URL(requests.toAbsURL('/pkce/verify'));
 
     return currentOrigin;
 };
@@ -153,7 +152,7 @@ export const pkceCallback = async (queryParams: string, oidcConfig: AuthSettings
         throw new PKCELoginError('No token in response');
     }
 
-    document.cookie = `argocd.token=${result.id_token}; path=/`;
+    document.cookie = `argocd.token=${result.id_token}; path=${requests.toAbsURL('')}`;
 
-    window.location.replace('/applications');
+    window.location.replace(requests.toAbsURL('/applications'));
 };
