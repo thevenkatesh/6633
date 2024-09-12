@@ -506,6 +506,7 @@ func createFakeAppWithHealthAndTime(testApp string, status health.HealthStatusCo
 	app.Status.Health = v1alpha1.HealthStatus{
 		Status:             status,
 		LastTransitionTime: &timestamp,
+		ObservedAt:         &timestamp,
 	}
 	return app
 }
@@ -1781,7 +1782,7 @@ apps/Deployment:
 			require.NoError(t, err)
 			assert.NotEmpty(t, apps)
 			assert.Equal(t, tc.expectedStatus, apps[0].Status.Health.Status)
-			assert.NotEqual(t, &testTimestamp, apps[0].Status.Health.LastTransitionTime)
+			assert.NotEqual(t, testTimestamp, *apps[0].Status.Health.LastTransitionTime)
 		})
 	}
 }
@@ -1881,13 +1882,48 @@ apps/Deployment:
 			require.NoError(t, err)
 			if assert.NotEmpty(t, apps) {
 				assert.Equal(t, tc.expectedStatus, apps[0].Status.Health.Status)
-				assert.NotEqual(t, testTimestamp, apps[0].Status.Health.LastTransitionTime)
+				assert.NotEqual(t, testTimestamp, *apps[0].Status.Health.LastTransitionTime)
 			}
 
 			ctrl.requestAppRefresh(app.Name, nil, nil)
 			time.Sleep(time.Millisecond * 15)
 		})
 	}
+}
+
+func TestUpdateHealthStatusObservedAtTime(t *testing.T) {
+	app := newFakeAppWithHealthAndTime(health.HealthStatusHealthy, testTimestamp)
+	ctrl := newFakeController(&fakeData{
+		apps: []runtime.Object{app, &defaultProj},
+		manifestResponse: &apiclient.ManifestResponse{
+			Manifests: []string{},
+			Namespace: test.FakeDestNamespace,
+			Server:    test.FakeClusterURL,
+			Revision:  "abc123",
+		},
+	}, nil)
+
+	ctrl.processAppRefreshQueueItem()
+	apps, err := ctrl.appLister.List(labels.Everything())
+	require.NoError(t, err)
+	assert.NotEmpty(t, apps)
+	assert.Equal(t, health.HealthStatusHealthy, apps[0].Status.Health.Status)
+	assert.NotEqual(t, testTimestamp, *apps[0].Status.Health.ObservedAt)
+	previousObservedAtTime := apps[0].Status.Health.ObservedAt
+	previousLastTransitionTime := apps[0].Status.Health.LastTransitionTime
+
+	// sleep & enqueue to simulate informer event generation
+	time.Sleep(2 * time.Second)
+	ctrl.requestAppRefresh(app.QualifiedName(), ComparisonWithNothing.Pointer(), nil)
+
+	// only Health.ObservedAt should be updated
+	ctrl.processAppRefreshQueueItem()
+	apps, err = ctrl.appLister.List(labels.Everything())
+	require.NoError(t, err)
+	assert.NotEmpty(t, apps)
+	assert.Equal(t, health.HealthStatusHealthy, apps[0].Status.Health.Status)
+	assert.Equal(t, *previousLastTransitionTime, *apps[0].Status.Health.LastTransitionTime)
+	assert.NotEqual(t, *previousObservedAtTime, *apps[0].Status.Health.ObservedAt)
 }
 
 func TestProjectErrorToCondition(t *testing.T) {

@@ -26,6 +26,7 @@ var (
 		Status: appv1.ApplicationStatus{
 			Health: appv1.HealthStatus{
 				LastTransitionTime: &metav1.Time{Time: time.Date(2020, time.January, 1, 12, 0, 0, 0, time.UTC)},
+				ObservedAt:         &metav1.Time{Time: time.Date(2020, time.January, 1, 12, 0, 0, 0, time.UTC)},
 			},
 		},
 	}
@@ -65,23 +66,27 @@ func TestSetApplicationHealth(t *testing.T) {
 	resourceStatuses := initStatuses(resources)
 
 	healthStatus, err := setApplicationHealth(resources, resourceStatuses, lua.ResourceHealthOverrides{}, app, true)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, health.HealthStatusDegraded, healthStatus.Status)
 	assert.NotNil(t, healthStatus.LastTransitionTime)
 	previousLastTransitionTime := healthStatus.LastTransitionTime
+	previousObservedAtTime := healthStatus.ObservedAt
 
-	// Health.LastTransitionTime is set only for app health and not at individual resource level
+	// Health.LastTransitionTime & Health.ObservedAt are set only for app health and not at individual resource level
 	assert.Equal(t, health.HealthStatusHealthy, resourceStatuses[0].Health.Status)
 	assert.Nil(t, resourceStatuses[0].Health.LastTransitionTime)
+	assert.Nil(t, resourceStatuses[0].Health.ObservedAt)
 	assert.Equal(t, health.HealthStatusDegraded, resourceStatuses[1].Health.Status)
 	assert.Nil(t, resourceStatuses[1].Health.LastTransitionTime)
+	assert.Nil(t, resourceStatuses[1].Health.ObservedAt)
 
 	// now mark the job as a hook and retry. it should ignore the hook and consider the app healthy
 	failedJob.SetAnnotations(map[string]string{synccommon.AnnotationKeyHook: "PreSync"})
 	healthStatus, err = setApplicationHealth(resources, resourceStatuses, nil, app, true)
 	require.NoError(t, err)
 	assert.Equal(t, health.HealthStatusHealthy, healthStatus.Status)
-	assert.NotEqual(t, previousLastTransitionTime, healthStatus.LastTransitionTime)
+	assert.NotEqual(t, *previousLastTransitionTime, *healthStatus.LastTransitionTime)
+	assert.NotEqual(t, *previousObservedAtTime, *healthStatus.ObservedAt)
 }
 
 func TestSetApplicationHealth_ResourceHealthNotPersisted(t *testing.T) {
@@ -110,7 +115,10 @@ func TestSetApplicationHealth_MissingResource(t *testing.T) {
 	healthStatus, err := setApplicationHealth(resources, resourceStatuses, lua.ResourceHealthOverrides{}, app, true)
 	require.NoError(t, err)
 	assert.Equal(t, health.HealthStatusMissing, healthStatus.Status)
+	assert.NotNil(t, healthStatus.LastTransitionTime)
+	assert.NotNil(t, healthStatus.ObservedAt)
 	assert.False(t, healthStatus.LastTransitionTime.IsZero())
+	assert.False(t, healthStatus.ObservedAt.IsZero())
 }
 
 func TestSetApplicationHealth_HealthImproves(t *testing.T) {
@@ -142,7 +150,8 @@ func TestSetApplicationHealth_HealthImproves(t *testing.T) {
 			healthStatus, err := setApplicationHealth(resources, resourceStatuses, overrides, app, true)
 			require.NoError(t, err)
 			assert.Equal(t, tc.newStatus, healthStatus.Status)
-			assert.NotEqual(t, &testTimestamp, healthStatus.LastTransitionTime)
+			assert.NotEqual(t, testTimestamp, *healthStatus.LastTransitionTime)
+			assert.NotEqual(t, testTimestamp, *healthStatus.ObservedAt)
 		})
 	}
 }
@@ -170,6 +179,7 @@ func TestSetApplicationHealth_MissingResourceNoBuiltHealthCheck(t *testing.T) {
 		}, app, true)
 		require.NoError(t, err)
 		assert.Equal(t, health.HealthStatusMissing, healthStatus.Status)
+		assert.NotNil(t, healthStatus.LastTransitionTime)
 		assert.False(t, healthStatus.LastTransitionTime.IsZero())
 	})
 }

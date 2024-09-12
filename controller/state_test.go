@@ -716,7 +716,10 @@ func TestSetHealth(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, health.HealthStatusHealthy, compRes.healthStatus.Status)
+	assert.NotNil(t, compRes.healthStatus.LastTransitionTime)
+	assert.NotNil(t, compRes.healthStatus.ObservedAt)
 	assert.False(t, compRes.healthStatus.LastTransitionTime.IsZero())
+	assert.False(t, compRes.healthStatus.ObservedAt.IsZero())
 }
 
 func TestPreserveStatusTimestamp(t *testing.T) {
@@ -753,7 +756,7 @@ func TestPreserveStatusTimestamp(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, health.HealthStatusHealthy, compRes.healthStatus.Status)
-	assert.Equal(t, &timestamp, compRes.healthStatus.LastTransitionTime)
+	assert.Equal(t, timestamp, *compRes.healthStatus.LastTransitionTime)
 }
 
 func TestSetHealthSelfReferencedApp(t *testing.T) {
@@ -791,7 +794,10 @@ func TestSetHealthSelfReferencedApp(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, health.HealthStatusHealthy, compRes.healthStatus.Status)
+	assert.NotNil(t, compRes.healthStatus.LastTransitionTime)
+	assert.NotNil(t, compRes.healthStatus.ObservedAt)
 	assert.False(t, compRes.healthStatus.LastTransitionTime.IsZero())
+	assert.False(t, compRes.healthStatus.ObservedAt.IsZero())
 }
 
 func TestSetManagedResourcesWithOrphanedResources(t *testing.T) {
@@ -867,7 +873,10 @@ func TestReturnUnknownComparisonStateOnSettingLoadError(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, health.HealthStatusUnknown, compRes.healthStatus.Status)
+	assert.NotNil(t, compRes.healthStatus.LastTransitionTime)
+	assert.NotNil(t, compRes.healthStatus.ObservedAt)
 	assert.False(t, compRes.healthStatus.LastTransitionTime.IsZero())
+	assert.False(t, compRes.healthStatus.ObservedAt.IsZero())
 	assert.Equal(t, argoappv1.SyncStatusCodeUnknown, compRes.syncStatus.Status)
 }
 
