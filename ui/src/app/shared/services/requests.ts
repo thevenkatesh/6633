@@ -43,9 +43,6 @@ export default {
     setBaseHRef(val: string) {
         baseHRef = val;
     },
-    getBaseHRef(): string {
-        return baseHRef;
-    },
     agent,
     toAbsURL,
     onError: onError.asObservable().pipe(filter(err => err != null)),
