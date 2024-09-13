@@ -30,8 +30,10 @@ export const PKCEState = {
 };
 
 export const getPKCERedirectURI = () => {
-    const currentOrigin = new URL(requests.toAbsURL('/pkce/verify'));
+    const currentOrigin = new URL(window.location.origin);
 
+    currentOrigin.pathname = requests.toAbsURL('/pkce/verify');
+    
     return currentOrigin;
 };
 
