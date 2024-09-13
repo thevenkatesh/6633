@@ -154,7 +154,7 @@ export const pkceCallback = async (queryParams: string, oidcConfig: AuthSettings
         throw new PKCELoginError('No token in response');
     }
 
-    document.cookie = `argocd.token=${result.id_token}; path=${requests.toAbsURL('').replace(/\/$/, '')}`;
+    document.cookie = `argocd.token=${result.id_token}; path=${requests.getBaseHRef()}`;
 
     window.location.replace(requests.toAbsURL('/applications'));
 };
