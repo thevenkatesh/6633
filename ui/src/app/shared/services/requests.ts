@@ -43,7 +43,7 @@ export default {
     setBaseHRef(val: string) {
         baseHRef = val;
     },
-    getBaseHRef() {
+    getBaseHRef(): string {
         return baseHRef;
     },
     agent,
