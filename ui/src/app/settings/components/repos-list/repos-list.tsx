@@ -295,7 +295,7 @@ export class ReposList extends React.Component<
                 <div className='repos-list'>
                     <div className='argo-container'>
                         <div style={{display: 'flex', margin: '20px 0', justifyContent: 'space-between'}}>
-                            <div style={{display: 'flex', gap: '8px'}}>
+                            <div style={{display: 'flex', gap: '8px', width:  '50%'}}>
                                 <DropDownMenu
                                     items={[
                                         {
