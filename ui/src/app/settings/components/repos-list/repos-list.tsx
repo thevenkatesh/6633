@@ -1047,7 +1047,7 @@ export class ReposList extends React.Component<
 
     private filteredName(repos: models.Repository[], name: string) {
         const trimmedName = name.trim();
-        const newRepos = repos.filter(repo => repo.name.toLowerCase().includes(trimmedName.toLowerCase()));
+        const newRepos = repos.filter(repo => !repo.name ||  repo.name.toLowerCase().includes(trimmedName.toLowerCase()));
         return newRepos;
     }
 
