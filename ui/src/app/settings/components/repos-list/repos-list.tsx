@@ -339,7 +339,14 @@ export class ReposList extends React.Component<
                                         return (
                                             <DropDownMenu
                                                 items={projectItems}
-                                                anchor={() => <button className='argo-button argo-button--base'>PROJECT</button>}
+                                               anchor={() => (
+                                                    <>
+                                                        <a>
+                                                            Project: <i className='fa fa-caret-down' />
+                                                        </a>
+                                                        &nbsp;
+                                                    </>
+                                                )}
                                                 qeId='project-menu'
                                             />
                                         );
