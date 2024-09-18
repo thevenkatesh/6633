@@ -311,7 +311,14 @@ export class ReposList extends React.Component<
                                             action: () => this.setState({typeProperty: 'helm'})
                                         }
                                     ]}
-                                    anchor={() => <button className='argo-button argo-button--base'>TYPE</button>}
+                                    anchor={() =>   (
+                                        <>
+                                            <a>
+                                                Type: <i className='fa fa-caret-down' />
+                                            </a>
+                                            &nbsp;
+                                        </>
+                                    )}
                                     qeId='type-menu'
                                 />
                                 <DataLoader load={services.repos.list} ref={loader => (this.repoLoader = loader)}>
