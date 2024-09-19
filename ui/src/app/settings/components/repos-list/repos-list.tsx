@@ -295,7 +295,7 @@ export class ReposList extends React.Component<
                 <div className='repos-list'>
                     <div className='argo-container'>
                         <div style={{display: 'flex', margin: '20px 0', justifyContent: 'space-between'}}>
-                            <div style={{display: 'flex', gap: '8px', width:  '50%'}}>
+                            <div style={{display: 'flex', gap: '10px', width: '50%'}}>
                                 <DropDownMenu
                                     items={[
                                         {
@@ -311,7 +311,7 @@ export class ReposList extends React.Component<
                                             action: () => this.setState({typeProperty: 'helm'})
                                         }
                                     ]}
-                                    anchor={() =>   (
+                                    anchor={() => (
                                         <>
                                             <a>
                                                 Type: <i className='fa fa-caret-down' />
@@ -339,7 +339,7 @@ export class ReposList extends React.Component<
                                         return (
                                             <DropDownMenu
                                                 items={projectItems}
-                                               anchor={() => (
+                                                anchor={() => (
                                                     <>
                                                         <a>
                                                             Project: <i className='fa fa-caret-down' />
@@ -371,19 +371,20 @@ export class ReposList extends React.Component<
                                             action: () => this.setState({statusProperty: 'Unknown'})
                                         }
                                     ]}
-                                 anchor={() =>  (
+                                    anchor={() => (
                                         <>
                                             <a>
                                                 Status: <i className='fa fa-caret-down' />
                                             </a>
                                             &nbsp;
                                         </>
-                                    )}                                             
+                                    )}
                                     qeId='status-menu'
                                 />
                             </div>
-                            <div className='search-bar' style={{display: 'flex', alignItems: 'flex-end', width: '100%'}}></div>
-                            <input type='text' className='argo-field' placeholder='Search Name' value={this.state.name} onChange={e => this.setState({name: e.target.value})} />
+                            <div className='search-bar' style={{display: 'flex', alignItems: 'flex-end', width: '50%'}}>
+                                <input type='text' className='argo-field' placeholder='Search Name' value={this.state.name} onChange={e => this.setState({name: e.target.value})} />
+                            </div>
                         </div>
                         <DataLoader load={services.repos.list} ref={loader => (this.repoLoader = loader)}>
                             {(repos: models.Repository[]) => {
@@ -1047,7 +1048,7 @@ export class ReposList extends React.Component<
 
     private filteredName(repos: models.Repository[], name: string) {
         const trimmedName = name.trim();
-        const newRepos = repos.filter(repo => !repo.name ||  repo.name.toLowerCase().includes(trimmedName.toLowerCase()));
+        const newRepos = repos.filter(repo => !repo.name || repo.name.toLowerCase().includes(trimmedName.toLowerCase()));
         return newRepos;
     }
 
