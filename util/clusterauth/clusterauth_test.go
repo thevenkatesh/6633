@@ -2,6 +2,7 @@ package clusterauth
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -13,12 +14,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/client-go/kubernetes/fake"
 	kubetesting "k8s.io/client-go/testing"
 	"sigs.k8s.io/yaml"
 
-	"github.com/argoproj/argo-cd/v2/util/errors"
+	argoerr "github.com/argoproj/argo-cd/v2/util/errors"
 )
 
 const (
@@ -37,19 +37,19 @@ var testClaims = ServiceAccountClaims{
 
 func newServiceAccount() *corev1.ServiceAccount {
 	saBytes, err := os.ReadFile("./testdata/argocd-manager-sa.yaml")
-	errors.CheckError(err)
+	argoerr.CheckError(err)
 	var sa corev1.ServiceAccount
 	err = yaml.Unmarshal(saBytes, &sa)
-	errors.CheckError(err)
+	argoerr.CheckError(err)
 	return &sa
 }
 
 func newServiceAccountSecret() *corev1.Secret {
 	secretBytes, err := os.ReadFile("./testdata/argocd-manager-sa-token.yaml")
-	errors.CheckError(err)
+	argoerr.CheckError(err)
 	var secret corev1.Secret
 	err = yaml.Unmarshal(secretBytes, &secret)
-	errors.CheckError(err)
+	argoerr.CheckError(err)
 	return &secret
 }
 
@@ -292,42 +292,61 @@ func Test_getOrCreateServiceAccountTokenSecret_NoSecretForSA(t *testing.T) {
 			Name: "kube-system",
 		},
 	}
-	saWithoutSecret := &corev1.ServiceAccount{
+	sa := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ArgoCDManagerServiceAccount,
 			Namespace: ns.Name,
 		},
 	}
-	cs := fake.NewClientset(ns, saWithoutSecret)
-	cs.PrependReactor("create", "secrets",
-		func(a kubetesting.Action) (handled bool, ret runtime.Object, err error) {
-			s, ok := a.(kubetesting.CreateAction).GetObject().(*corev1.Secret)
-			if !ok {
-				return
-			}
-
-			if s.Name == "" && s.GenerateName != "" {
-				s.SetName(names.SimpleNameGenerator.GenerateName(s.GenerateName))
-			}
-
-			s.Data = make(map[string][]byte)
-			s.Data["token"] = []byte("fake-token")
-
-			return
-		})
-
-	got, err := getOrCreateServiceAccountTokenSecret(cs, ArgoCDManagerServiceAccount, ns.Name)
-	require.NoError(t, err)
-	assert.Equal(t, ArgoCDManagerServiceAccount+SATokenSecretSuffix, got)
-
-	obj, err := cs.Tracker().Get(schema.GroupVersionResource{Version: "v1", Resource: "serviceaccounts"},
-		ns.Name, ArgoCDManagerServiceAccount)
-	if err != nil {
-		t.Errorf("ServiceAccount %s not found but was expected to be found: %s", ArgoCDManagerServiceAccount, err.Error())
+	manualSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ArgoCDManagerServiceAccount + SATokenSecretSuffix,
+			Namespace: ns.Name,
+			Annotations: map[string]string{
+				corev1.ServiceAccountNameKey: sa.Name,
+			},
+		},
+		Type: corev1.SecretTypeServiceAccountToken,
 	}
 
-	sa := obj.(*corev1.ServiceAccount)
-	assert.Empty(t, sa.Secrets, 0)
+	assertOnlyOneTokenExists := func(t *testing.T, cs *fake.Clientset) {
+		got, err := getOrCreateServiceAccountTokenSecret(cs, ArgoCDManagerServiceAccount, ns.Name)
+		require.NoError(t, err)
+		assert.Equal(t, ArgoCDManagerServiceAccount+SATokenSecretSuffix, got)
+
+		list, err := cs.Tracker().List(schema.GroupVersionResource{Version: "v1", Resource: "secrets"},
+			schema.GroupVersionKind{Version: "v1", Kind: "Secret"}, ns.Name, metav1.ListOptions{})
+		require.NoError(t, err)
+		secretList, ok := list.(*corev1.SecretList)
+		require.True(t, ok)
+		assert.Len(t, secretList.Items, 1)
+		obj, err := cs.Tracker().Get(schema.GroupVersionResource{Version: "v1", Resource: "serviceaccounts"},
+			ns.Name, ArgoCDManagerServiceAccount)
+		if err != nil {
+			t.Errorf("ServiceAccount %s not found but was expected to be found: %s", ArgoCDManagerServiceAccount, err.Error())
+		}
+
+		assert.Empty(t, obj.(*corev1.ServiceAccount).Secrets, 0)
+	}
+	t.Run("Token secret exists", func(t *testing.T) {
+		cs := fake.NewClientset(ns, sa, manualSecret)
+		assertOnlyOneTokenExists(t, cs)
+	})
+
+	t.Run("Token secret does not exist", func(t *testing.T) {
+		cs := fake.NewClientset(ns, sa)
+		assertOnlyOneTokenExists(t, cs)
+	})
+
+	t.Run("Error on secret creation", func(t *testing.T) {
+		cs := fake.NewClientset(ns, sa)
+		cs.PrependReactor("create", "secrets", func(kubetesting.Action) (handled bool, ret runtime.Object, err error) {
+			return true, &corev1.Secret{}, errors.New("testing error case")
+		})
+		got, err := getOrCreateServiceAccountTokenSecret(cs, ArgoCDManagerServiceAccount, ns.Name)
+		require.Error(t, err)
+		assert.Empty(t, got)
+	})
 }
 
 func Test_getOrCreateServiceAccountTokenSecret_SAHasSecret(t *testing.T) {
