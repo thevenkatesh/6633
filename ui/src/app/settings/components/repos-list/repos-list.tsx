@@ -1056,7 +1056,7 @@ export class ReposList extends React.Component<
     }
 
     private filteredProject(repos: models.Repository[], project: string) {
-        const newRepos = repos.filter(repo => repo.project.includes(project));
+        const newRepos = repos.filter(repo => repo.project && repo.project.includes(project));
         return newRepos;
     }
 
