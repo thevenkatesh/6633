@@ -65,11 +65,11 @@ func newTestAccountServerExt(ctx context.Context, enforceFn rbac.ClaimsEnforcerF
 	}
 	kubeclientset := fake.NewSimpleClientset(cm, secret)
 	settingsMgr := settings.NewSettingsManager(ctx, kubeclientset, testNamespace)
-	sessionMgr := sessionutil.NewSessionManager(settingsMgr, test.NewFakeProjLister(), "", nil, sessionutil.NewUserStateStorage(nil))
+	sessionMgr := sessionutil.NewSessionManager(settingsMgr, test.NewFakeProjLister(), "", nil, sessionutil.NewUserStateStorage(nil), "")
 	enforcer := rbac.NewEnforcer(kubeclientset, testNamespace, common.ArgoCDRBACConfigMapName, nil)
 	enforcer.SetClaimsEnforcerFunc(enforceFn)
 
-	return NewServer(sessionMgr, settingsMgr, enforcer), session.NewServer(sessionMgr, settingsMgr, nil, nil, nil)
+	return NewServer(sessionMgr, settingsMgr, enforcer, kubeclientset), session.NewServer(sessionMgr, settingsMgr, nil, nil, nil, kubeclientset)
 }
 
 func getAdminAccount(mgr *settings.SettingsManager) (*settings.Account, error) {
@@ -104,6 +104,8 @@ func projTokenContext(ctx context.Context) context.Context {
 }
 
 func TestUpdatePassword(t *testing.T) {
+	// Create a fake Kubernetes clientset for testing
+	kubeClientset := fake.NewSimpleClientset()
 	accountServer, sessionServer := newTestAccountServer(context.Background())
 	ctx := adminContext(context.Background())
 	var err error
@@ -111,8 +113,8 @@ func TestUpdatePassword(t *testing.T) {
 	// ensure password is not allowed to be updated if given bad password
 	_, err = accountServer.UpdatePassword(ctx, &account.UpdatePasswordRequest{CurrentPassword: "badpassword", NewPassword: "newpassword"})
 	require.Error(t, err)
-	require.NoError(t, accountServer.sessionMgr.VerifyUsernamePassword("admin", "oldpassword"))
-	require.Error(t, accountServer.sessionMgr.VerifyUsernamePassword("admin", "newpassword"))
+	require.NoError(t, accountServer.sessionMgr.VerifyUsernamePassword("admin", "oldpassword", kubeClientset))
+	require.Error(t, accountServer.sessionMgr.VerifyUsernamePassword("admin", "newpassword", kubeClientset))
 	// verify old password works
 	_, err = sessionServer.Create(ctx, &sessionpkg.SessionCreateRequest{Username: "admin", Password: "oldpassword"})
 	require.NoError(t, err)
@@ -129,8 +131,8 @@ func TestUpdatePassword(t *testing.T) {
 	adminAccount, err = getAdminAccount(accountServer.settingsMgr)
 	require.NoError(t, err)
 	assert.NotEqual(t, prevHash, adminAccount.PasswordHash)
-	require.NoError(t, accountServer.sessionMgr.VerifyUsernamePassword("admin", "newpassword"))
-	require.Error(t, accountServer.sessionMgr.VerifyUsernamePassword("admin", "oldpassword"))
+	require.NoError(t, accountServer.sessionMgr.VerifyUsernamePassword("admin", "newpassword", kubeClientset))
+	require.Error(t, accountServer.sessionMgr.VerifyUsernamePassword("admin", "oldpassword", kubeClientset))
 	// verify old password is invalid
 	_, err = sessionServer.Create(ctx, &sessionpkg.SessionCreateRequest{Username: "admin", Password: "oldpassword"})
 	require.Error(t, err)

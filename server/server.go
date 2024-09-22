@@ -229,6 +229,7 @@ type ArgoCDServerOpts struct {
 	ApplicationNamespaces   []string
 	EnableProxyExtension    bool
 	WebhookParallelism      int
+	InclusterServiceAccount string
 }
 
 type ApplicationSetOpts struct {
@@ -297,7 +298,7 @@ func NewServer(ctx context.Context, opts ArgoCDServerOpts, appsetOpts Applicatio
 	appsetLister := appFactory.Argoproj().V1alpha1().ApplicationSets().Lister()
 
 	userStateStorage := util_session.NewUserStateStorage(opts.RedisClient)
-	sessionMgr := util_session.NewSessionManager(settingsMgr, projLister, opts.DexServerAddr, opts.DexTLSConfig, userStateStorage)
+	sessionMgr := util_session.NewSessionManager(settingsMgr, projLister, opts.DexServerAddr, opts.DexTLSConfig, userStateStorage, opts.InclusterServiceAccount)
 	enf := rbac.NewEnforcer(opts.KubeClientset, opts.Namespace, common.ArgoCDRBACConfigMapName, nil)
 	enf.EnableEnforce(!opts.DisableAuth)
 	err = enf.SetBuiltinPolicy(assets.BuiltinPolicyCSV)
@@ -868,7 +869,7 @@ func newArgoCDServiceSet(a *ArgoCDServer) *ArgoCDServiceSet {
 	if maxConcurrentLoginRequestsCount > 0 {
 		loginRateLimiter = session.NewLoginRateLimiter(maxConcurrentLoginRequestsCount)
 	}
-	sessionService := session.NewServer(a.sessionMgr, a.settingsMgr, a, a.policyEnforcer, loginRateLimiter)
+	sessionService := session.NewServer(a.sessionMgr, a.settingsMgr, a, a.policyEnforcer, loginRateLimiter, a.KubeClientset)
 	projectLock := sync.NewKeyLock()
 	applicationService, appResourceTreeFn := application.NewServer(
 		a.Namespace,
@@ -912,7 +913,7 @@ func newArgoCDServiceSet(a *ArgoCDServer) *ArgoCDServiceSet {
 	projectService := project.NewServer(a.Namespace, a.KubeClientset, a.AppClientset, a.enf, projectLock, a.sessionMgr, a.policyEnforcer, a.projInformer, a.settingsMgr, a.db)
 	appsInAnyNamespaceEnabled := len(a.ArgoCDServerOpts.ApplicationNamespaces) > 0
 	settingsService := settings.NewServer(a.settingsMgr, a.RepoClientset, a, a.DisableAuth, appsInAnyNamespaceEnabled)
-	accountService := account.NewServer(a.sessionMgr, a.settingsMgr, a.enf)
+	accountService := account.NewServer(a.sessionMgr, a.settingsMgr, a.enf, a.KubeClientset)
 
 	notificationService := notification.NewServer(a.apiFactory)
 	certificateService := certificate.NewServer(a.RepoClientset, a.db, a.enf)
