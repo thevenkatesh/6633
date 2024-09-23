@@ -31,7 +31,7 @@ jobs:
       docs: ${{ steps.filter.outputs.docs_any_changed }}
     steps:
       - uses: actions/checkout@8410ad0602e1e429cee44a835ae9f77f654a6694 # v4.0.0
-      - uses: tj-actions/changed-files@c65cd883420fd2eb864698a825fc4162dd94482c # v44.5.7
+      - uses: tj-actions/changed-files@48d8f15b2aaa3d255ca5af3eba4870f807ce6b3c # v45.0.2
         id: filter
         with:
           # Any file which is not under docs/, ui/ or is not a markdown file is counted as a backend file
@@ -172,7 +172,7 @@ jobs:
       - name: Run all unit tests
         run: make test-local
       - name: Generate test results artifacts
-        uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a # v4.3.6
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
         with:
           name: test-results
           path: test-results
@@ -236,7 +236,7 @@ jobs:
       - name: Run all unit tests
         run: make test-race-local
       - name: Generate test results artifacts
-        uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a # v4.3.6
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
         with:
           name: race-results
           path: test-results/
@@ -303,7 +303,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@8410ad0602e1e429cee44a835ae9f77f654a6694 # v4.0.0
       - name: Setup NodeJS
-        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
+        uses: actions/setup-node@0a44ba7841725637a19e28fa30b79a866c81b0a6 # v4.0.4
         with:
           node-version: '21.6.1'
       - name: Restore node dependency cache
@@ -506,13 +506,13 @@ jobs:
           goreman run stop-all || echo "goreman trouble"
           sleep 30
       - name: Upload e2e coverage report
-        uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a # v4.3.6
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
         with:
           name: e2e-code-coverage
           path: /tmp/coverage
         if: ${{ matrix.k3s.latest }}
       - name: Upload e2e-server logs
-        uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a # v4.3.6
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
         with:
           name: e2e-server-k8s${{ matrix.k3s.version }}.log
           path: /tmp/e2e-server.log
