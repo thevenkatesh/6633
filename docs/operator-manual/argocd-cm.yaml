@@ -222,6 +222,9 @@ data:
       clusters:
       - "*.local"
 
+  # An optional comma-separated list of annotation keys to mask in UI/CLI on secret resources
+  resource.sensitive.mask.annotations: openshift.io/token-secret.value,api-key
+
   # An optional comma-separated list of metadata.labels to observe in the UI.
   resource.customLabels: tier
 
@@ -429,8 +432,3 @@ data:
 
   # application.sync.impersonation.enabled indicates whether the application sync can be decoupled from control plane service account using impersonation.
   application.sync.impersonation.enabled: "false"
-
-  # An optional list of annotation keys to hide in UI on secret resources
-  hide.secret.annotations: |
-    - openshift.io/token-secret.value
-    - api-key

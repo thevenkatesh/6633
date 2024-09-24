@@ -552,7 +552,7 @@ func (s *Server) GetManifests(ctx context.Context, q *application.ApplicationMan
 				return nil, fmt.Errorf("error unmarshaling manifest into unstructured: %w", err)
 			}
 			if obj.GetKind() == kube.SecretKind && obj.GroupVersionKind().Group == "" {
-				obj, _, err = diff.HideSecretData(obj, nil, s.settingsMgr.GetHideSecretAnnotations())
+				obj, _, err = diff.HideSecretData(obj, nil, s.settingsMgr.GetSensitiveAnnotations())
 				if err != nil {
 					return nil, fmt.Errorf("error hiding secret data: %w", err)
 				}
@@ -679,7 +679,7 @@ func (s *Server) GetManifestsWithFiles(stream application.ApplicationService_Get
 			return fmt.Errorf("error unmarshaling manifest into unstructured: %w", err)
 		}
 		if obj.GetKind() == kube.SecretKind && obj.GroupVersionKind().Group == "" {
-			obj, _, err = diff.HideSecretData(obj, nil, s.settingsMgr.GetHideSecretAnnotations())
+			obj, _, err = diff.HideSecretData(obj, nil, s.settingsMgr.GetSensitiveAnnotations())
 			if err != nil {
 				return fmt.Errorf("error hiding secret data: %w", err)
 			}
@@ -1378,7 +1378,7 @@ func (s *Server) GetResource(ctx context.Context, q *application.ApplicationReso
 
 func (s *Server) replaceSecretValues(obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
 	if obj.GetKind() == kube.SecretKind && obj.GroupVersionKind().Group == "" {
-		_, obj, err := diff.HideSecretData(nil, obj, s.settingsMgr.GetHideSecretAnnotations())
+		_, obj, err := diff.HideSecretData(nil, obj, s.settingsMgr.GetSensitiveAnnotations())
 		if err != nil {
 			return nil, err
 		}
