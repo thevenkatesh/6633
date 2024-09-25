@@ -33,7 +33,7 @@ export const getPKCERedirectURI = () => {
     const currentOrigin = new URL(window.location.origin);
 
     currentOrigin.pathname = requests.toAbsURL('/pkce/verify');
-    
+
     return currentOrigin;
 };
 
