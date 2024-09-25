@@ -103,7 +103,7 @@ requests.onError.subscribe(async err => {
         const basehref = document.querySelector('head > base').getAttribute('href').replace(/\/$/, '');
         if (isSSO) {
             const authSettings = await services.authService.settings();
-            
+
             if (authSettings?.oidcConfig?.enablePKCEAuthentication) {
                 pkceLogin(authSettings.oidcConfig, getPKCERedirectURI().toString());
             } else {
