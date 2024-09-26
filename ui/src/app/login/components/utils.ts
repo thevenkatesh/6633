@@ -154,6 +154,10 @@ export const pkceCallback = async (queryParams: string, oidcConfig: AuthSettings
         throw new PKCELoginError('No token in response');
     }
 
+    // This regex removes any leading or trailing '/' characters and the result is appended to a '/'
+    // This is because when base href if not just '/' toAbsURL() will append a trailing '/' which is an invalid path for 
+    // the cookie and just removing a trailing '/' from the string would break when base href is not specified, defaulted to '/'
+    // This pattern is used to handle both cases
     document.cookie = `argocd.token=${result.id_token}; path=/${requests.toAbsURL('').replace(/^\/|\/$/g, '')}`;
 
     window.location.replace(requests.toAbsURL('/applications'));
