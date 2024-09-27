@@ -2346,6 +2346,7 @@ func (ctrl *ApplicationController) newApplicationInformerAndLister() (cache.Shar
 		appHealthStatusResyncDuration, // 30s
 	)
 	if err != nil {
+		log.Error(err)
 		return nil, nil
 	}
 	return informer, lister
