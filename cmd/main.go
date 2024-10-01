@@ -1,12 +1,11 @@
 package main
 
 import (
+	"github.com/argoproj/argo-cd/v2/cmd/util"
 	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
-
-	_ "go.uber.org/automaxprocs"
 
 	appcontroller "github.com/argoproj/argo-cd/v2/cmd/argocd-application-controller/commands"
 	applicationset "github.com/argoproj/argo-cd/v2/cmd/argocd-applicationset-controller/commands"
@@ -27,13 +26,18 @@ const (
 func main() {
 	var command *cobra.Command
 
+	o := util.ArgoCDCLIOptions{
+		PluginHandler: util.NewDefaultPluginHandler([]string{"argocd"}),
+		Arguments:     os.Args,
+	}
+
 	binaryName := filepath.Base(os.Args[0])
 	if val := os.Getenv(binaryNameEnv); val != "" {
 		binaryName = val
 	}
 	switch binaryName {
 	case "argocd", "argocd-linux-amd64", "argocd-darwin-amd64", "argocd-windows-amd64.exe":
-		command = cli.NewCommand()
+		command = cli.NewDefaultArgoCDCommandWithArgs(o)
 	case "argocd-server":
 		command = apiserver.NewCommand()
 	case "argocd-application-controller":
@@ -53,7 +57,7 @@ func main() {
 	case "argocd-k8s-auth":
 		command = k8sauth.NewCommand()
 	default:
-		command = cli.NewCommand()
+		command = cli.NewDefaultArgoCDCommand()
 	}
 
 	if err := command.Execute(); err != nil {
