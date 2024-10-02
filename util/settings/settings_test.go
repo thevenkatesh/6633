@@ -1725,3 +1725,37 @@ func TestRedirectAdditionalURLs(t *testing.T) {
 		})
 	}
 }
+
+func TestSettingsManager_GetSensitiveAnnotations(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  string
+		output map[string]bool
+	}{
+		{
+			name:   "Empty input",
+			input:  "",
+			output: map[string]bool{},
+		},
+		{
+			name:   "Comma separated data",
+			input:  "example.com/token-secret.value,token,key",
+			output: map[string]bool{"example.com/token-secret.value": true, "token": true, "key": true},
+		},
+		{
+			name:   "Comma separated data with space",
+			input:  "example.com/token-secret.value, token,    key",
+			output: map[string]bool{"example.com/token-secret.value": true, "token": true, "key": true},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, settingsManager := fixtures(map[string]string{
+				resourceSensitiveAnnotationsKey: tt.input,
+			})
+			keys := settingsManager.GetSensitiveAnnotations()
+			assert.Equal(t, len(tt.output), len(keys))
+			assert.Equal(t, tt.output, keys)
+		})
+	}
+}
