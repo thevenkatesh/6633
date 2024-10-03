@@ -2531,7 +2531,7 @@ func (s *Service) GetHelmCharts(ctx context.Context, q *apiclient.HelmChartsRequ
 		return nil, err
 	}
 	res := apiclient.HelmChartsResponse{}
-	for chartName, entries := range index.Tags {
+	for chartName, entries := range index.Entries {
 		chart := apiclient.HelmChart{
 			Name: chartName,
 		}
