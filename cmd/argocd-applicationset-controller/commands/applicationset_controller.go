@@ -18,11 +18,12 @@ import (
 	"github.com/argoproj/argo-cd/v2/applicationset/controllers"
 	"github.com/argoproj/argo-cd/v2/applicationset/generators"
 	"github.com/argoproj/argo-cd/v2/applicationset/utils"
-	"github.com/argoproj/argo-cd/v2/applicationset/webhook"
+	webhookHandler "github.com/argoproj/argo-cd/v2/applicationset/webhookhandler"
 	cmdutil "github.com/argoproj/argo-cd/v2/cmd/util"
 	"github.com/argoproj/argo-cd/v2/common"
 	"github.com/argoproj/argo-cd/v2/util/env"
 	"github.com/argoproj/argo-cd/v2/util/github_app"
+	"github.com/argoproj/argo-cd/v2/util/webhook"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -185,13 +186,19 @@ func NewCommand() *cobra.Command {
 
 			topLevelGenerators := generators.GetGenerators(ctx, mgr.GetClient(), k8sClient, namespace, argoCDService, dynamicClient, scmConfig)
 
-			// start a webhook server that listens to incoming webhook payloads
-			webhookHandler, err := webhook.NewWebhookHandler(namespace, webhookParallelism, argoSettingsMgr, mgr.GetClient(), topLevelGenerators)
+			appSetWebhook, err := webhookHandler.NewWebhook(
+				webhookParallelism,
+				argoSettingsMgr.GetMaxWebhookPayloadSize(),
+				argoSettingsMgr,
+				mgr.GetClient(),
+				topLevelGenerators,
+			)
 			if err != nil {
 				log.Error(err, "failed to create webhook handler")
 			}
-			if webhookHandler != nil {
-				startWebhookServer(webhookHandler, webhookAddr)
+
+			if appSetWebhook != nil {
+				startWebhookServer(appSetWebhook, webhookAddr)
 			}
 
 			metrics := appsetmetrics.NewApplicationsetMetrics(
@@ -263,9 +270,9 @@ func NewCommand() *cobra.Command {
 	return &command
 }
 
-func startWebhookServer(webhookHandler *webhook.WebhookHandler, webhookAddr string) {
+func startWebhookServer(webhook *webhook.Webhook, webhookAddr string) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/webhook", webhookHandler.Handler)
+	mux.HandleFunc("/api/webhook", webhook.HandleRequest)
 	go func() {
 		log.Infof("Starting webhook server %s", webhookAddr)
 		err := http.ListenAndServe(webhookAddr, mux)

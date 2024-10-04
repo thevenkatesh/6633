@@ -1,4 +1,4 @@
-package webhook
+package webhookhandler
 
 import (
 	"bytes"
@@ -63,7 +63,7 @@ func TestWebhookHandler(t *testing.T) {
 			headerKey:          "X-GitHub-Event",
 			headerValue:        "push",
 			payloadFile:        "github-commit-event.json",
-			effectedAppSets:    []string{"git-github", "matrix-git-github", "merge-git-github", "matrix-scm-git-github", "matrix-nested-git-github", "merge-nested-git-github", "plugin", "matrix-pull-request-github-plugin"},
+			effectedAppSets:    []string{"git-github", "git-github-ssh", "git-github-alt-ssh", "matrix-git-github", "merge-git-github", "matrix-scm-git-github", "matrix-nested-git-github", "merge-nested-git-github", "plugin", "matrix-pull-request-github-plugin"},
 			expectedStatusCode: http.StatusOK,
 			expectedRefresh:    true,
 		},
@@ -81,7 +81,7 @@ func TestWebhookHandler(t *testing.T) {
 			headerKey:          "X-GitHub-Event",
 			headerValue:        "push",
 			payloadFile:        "github-commit-branch-event.json",
-			effectedAppSets:    []string{"git-github", "plugin", "matrix-pull-request-github-plugin"},
+			effectedAppSets:    []string{"git-github", "git-github-ssh", "git-github-alt-ssh", "plugin", "matrix-pull-request-github-plugin"},
 			expectedStatusCode: http.StatusOK,
 			expectedRefresh:    true,
 		},
@@ -90,7 +90,7 @@ func TestWebhookHandler(t *testing.T) {
 			headerKey:          "X-GitHub-Event",
 			headerValue:        "ping",
 			payloadFile:        "github-ping-event.json",
-			effectedAppSets:    []string{"git-github", "plugin"},
+			effectedAppSets:    []string{"git-github", "git-github-ssh", "git-github-alt-ssh", "plugin"},
 			expectedStatusCode: http.StatusOK,
 			expectedRefresh:    false,
 		},
@@ -99,7 +99,7 @@ func TestWebhookHandler(t *testing.T) {
 			headerKey:          "X-Gitlab-Event",
 			headerValue:        "Push Hook",
 			payloadFile:        "gitlab-event.json",
-			effectedAppSets:    []string{"git-gitlab", "plugin", "matrix-pull-request-github-plugin"},
+			effectedAppSets:    []string{"git-gitlab", "git-gitlab-ssh", "git-gitlab-alt-ssh", "plugin", "matrix-pull-request-github-plugin"},
 			expectedStatusCode: http.StatusOK,
 			expectedRefresh:    true,
 		},
@@ -108,7 +108,7 @@ func TestWebhookHandler(t *testing.T) {
 			headerKey:          "X-Random-Event",
 			headerValue:        "Push Hook",
 			payloadFile:        "gitlab-event.json",
-			effectedAppSets:    []string{"git-gitlab", "plugin"},
+			effectedAppSets:    []string{"git-gitlab", "git-gitlab-ssh", "git-gitlab-alt-ssh", "plugin"},
 			expectedStatusCode: http.StatusBadRequest,
 			expectedRefresh:    false,
 		},
@@ -117,7 +117,7 @@ func TestWebhookHandler(t *testing.T) {
 			headerKey:          "X-Random-Event",
 			headerValue:        "Push Hook",
 			payloadFile:        "invalid-event.json",
-			effectedAppSets:    []string{"git-gitlab", "plugin"},
+			effectedAppSets:    []string{"git-gitlab", "git-gitlab-ssh", "git-gitlab-alt-ssh", "plugin"},
 			expectedStatusCode: http.StatusBadRequest,
 			expectedRefresh:    false,
 		},
@@ -199,7 +199,11 @@ func TestWebhookHandler(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			fc := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
 				fakeAppWithGitGenerator("git-github", namespace, "https://github.com/org/repo"),
-				fakeAppWithGitGenerator("git-gitlab", namespace, "https://gitlab/group/name"),
+				fakeAppWithGitGenerator("git-github-ssh", namespace, "ssh://git@github.com/org/repo"),
+				fakeAppWithGitGenerator("git-github-alt-ssh", namespace, "ssh://git@ssh.github.com:443/org/repo"),
+				fakeAppWithGitGenerator("git-gitlab", namespace, "https://gitlab.com/group/name"),
+				fakeAppWithGitGenerator("git-gitlab-ssh", namespace, "ssh://git@gitlab.com/group/name"),
+				fakeAppWithGitGenerator("git-gitlab-alt-ssh", namespace, "ssh://git@altssh.gitlab.com:443/group/name"),
 				fakeAppWithGitGenerator("git-azure-devops", namespace, "https://dev.azure.com/fabrikam-fiber-inc/DefaultCollection/_git/Fabrikam-Fiber-Git"),
 				fakeAppWithGitGeneratorWithRevision("github-shorthand", namespace, "https://github.com/org/repo", "env/dev"),
 				fakeAppWithGithubPullRequestGenerator("pull-request-github", namespace, "CodErTOcat", "Hello-World"),
@@ -217,7 +221,7 @@ func TestWebhookHandler(t *testing.T) {
 				fakeAppWithMergeAndNestedGitGenerator("merge-nested-git-github", namespace, "https://github.com/org/repo"),
 			).Build()
 			set := argosettings.NewSettingsManager(context.TODO(), fakeClient, namespace)
-			h, err := NewWebhookHandler(namespace, webhookParallelism, set, fc, mockGenerators())
+			h, err := NewWebhook(webhookParallelism, int64(1)*1024*1024*1024, set, fc, mockGenerators())
 			require.NoError(t, err)
 
 			req := httptest.NewRequest(http.MethodPost, "/api/webhook", nil)
@@ -227,9 +231,8 @@ func TestWebhookHandler(t *testing.T) {
 			req.Body = io.NopCloser(bytes.NewReader(eventJSON))
 			w := httptest.NewRecorder()
 
-			h.Handler(w, req)
-			close(h.queue)
-			h.Wait()
+			h.HandleRequest(w, req)
+			h.CloseAndWait()
 			assert.Equal(t, test.expectedStatusCode, w.Code)
 
 			list := &v1alpha1.ApplicationSetList{}
